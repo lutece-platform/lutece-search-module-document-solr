@@ -33,19 +33,6 @@
  */
 package fr.paris.lutece.plugins.document.modules.solr.indexer;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.lucene.demo.html.HTMLParser;
-
 import fr.paris.lutece.plugins.document.business.Document;
 import fr.paris.lutece.plugins.document.business.DocumentHome;
 import fr.paris.lutece.plugins.document.business.DocumentType;
@@ -55,17 +42,36 @@ import fr.paris.lutece.plugins.document.business.attributes.DocumentAttributeHom
 import fr.paris.lutece.plugins.document.business.category.Category;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
+import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
 import fr.paris.lutece.plugins.lucene.service.indexer.IFileIndexer;
 import fr.paris.lutece.plugins.lucene.service.indexer.IFileIndexerFactory;
 import fr.paris.lutece.plugins.search.solr.business.field.Field;
 import fr.paris.lutece.plugins.search.solr.indexer.SolrIndexer;
+import fr.paris.lutece.plugins.search.solr.indexer.SolrIndexerService;
 import fr.paris.lutece.plugins.search.solr.indexer.SolrItem;
+import fr.paris.lutece.plugins.search.solr.util.SolrConstants;
+import fr.paris.lutece.portal.business.page.Page;
+import fr.paris.lutece.portal.business.page.PageHome;
 import fr.paris.lutece.portal.business.portlet.Portlet;
 import fr.paris.lutece.portal.business.portlet.PortletHome;
+import fr.paris.lutece.portal.service.message.SiteMessageException;
 import fr.paris.lutece.portal.service.spring.SpringContextService;
 import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
 import fr.paris.lutece.util.url.UrlItem;
+
+import org.apache.lucene.demo.html.HTMLParser;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.GregorianCalendar;
+import java.util.Iterator;
+import java.util.List;
 
 
 /**
@@ -76,24 +82,26 @@ public class SolrDocIndexer implements SolrIndexer
 {
     private static final String PROPERTY_PAGE_BASE_URL = "document.documentIndexer.baseUrl";
     private static final String SITE_URL = AppPropertiesService.getProperty( PROPERTY_PAGE_BASE_URL );
-    private static final String PARAMETER_SOLR_DOCUMENT_ID = "solr_document_id";
+
+    // Not used
+    // private static final String PARAMETER_SOLR_DOCUMENT_ID = "solr_document_id";
     private static final String PARAMETER_PORTLET_ID = "portlet_id";
     private static final String PROPERTY_INDEXER_ENABLE = "solr.indexer.document.enable";
     private static final String PROPERTY_NAME = "document-solr.indexer.name";
     private static final String PROPERTY_DESCRIPTION = "document-solr.indexer.description";
     private static final String PROPERTY_VERSION = "document-solr.indexer.version";
-    private static final String PROPERTY_SHORT_NAME = "document-solr.indexer.version";
-    private static final String PROPERTY_SITE = "solr.site.name";
-    
-	private static final String PARAMETER_DOCUMENT_ID = "id";
-	private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
-	private static final String DOCUMENT_ROOT_URL = "@base_url@document";
+    private static final String PROPERTY_SITE = "lutece.name";
+    private static final String PARAMETER_DOCUMENT_ID = "document_id";
+    private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
+    private static final String DOCUMENT_ROOT_URL = "@base_url@document";
+    private static final List<String> LIST_RESSOURCES_NAME = new ArrayList<String>(  );
 
     /**
      * Creates a new SolrPageIndexer
      */
     public SolrDocIndexer(  )
     {
+        LIST_RESSOURCES_NAME.add( DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE );
     }
 
     public boolean isEnable(  )
@@ -102,14 +110,10 @@ public class SolrDocIndexer implements SolrIndexer
     }
 
     /**
-     * Indexes data.
-     * @return mapDatas Map wich associates logs to indexed datas.
+     * {@inheritDoc}
      */
-	public Map<String, SolrItem> index(  )
+    public void indexDocuments(  ) throws IOException, InterruptedException, SiteMessageException
     {
-        StringBuilder sbLogs = new StringBuilder(  );
-        Map<String, SolrItem> mapDatas = new HashMap<String, SolrItem>();
-        
         //Page page;
         for ( Portlet portlet : PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) ) )
         {
@@ -119,35 +123,21 @@ public class SolrDocIndexer implements SolrIndexer
                 //The Lucene document of plugin-document
                 Document document = DocumentHome.findByPrimaryKey( d.getId(  ) );
 
-                try
+                // Generates the item to index
+                SolrItem item = getItem( portlet, document );
+
+                if ( item != null )
                 {
-                	// Clears the buffer
-                	sbLogs.setLength( 0 );
-                	// Adds the log
-                    sbLogs.append( "indexing " );
-                    sbLogs.append( document.getType(  ) );
-                    sbLogs.append( " id : " );
-                    sbLogs.append( document.getId(  ) );
-                    sbLogs.append( " Title : " );
-                    sbLogs.append( document.getTitle(  ) );
-                    sbLogs.append( "<br/>" );
-                    
-                    // Generates the item to index
-                    SolrItem item = getItem( portlet, document );
-                    mapDatas.put( sbLogs.toString(), item );
-                }
-                catch ( IOException e )
-                {
-                	AppLogService.error( e );
+                    SolrIndexerService.write( item );
                 }
             }
         }
-        
-        return mapDatas;
     }
 
-	/*
-    private SolrItem fillSolrItemForDocument( Document document )
+    /**
+    * {@inheritDoc}
+    */
+    private SolrItem getItem( Portlet portlet, Document document )
         throws IOException
     {
         // the item
@@ -157,11 +147,24 @@ public class SolrDocIndexer implements SolrIndexer
         item.setType( document.getType(  ) );
         item.setSummary( document.getSummary(  ) );
         item.setTitle( document.getTitle(  ) );
-        item.setSite( SITE );
+        item.setSite( AppPropertiesService.getProperty( PROPERTY_SITE ) );
         item.setRole( "none" );
+
+        if ( portlet != null )
+        {
+            item.setDocPortletId( document.getId(  ) + SolrConstants.CONSTANT_AND + portlet.getId(  ) );
+        }
+
         item.setXmlContent( document.getXmlValidatedContent(  ) );
 
-        //Date Hierarchy
+        // Reload the full object to get all its searchable attributes
+        UrlItem url = new UrlItem( SITE_URL );
+        url.addParameter( PARAMETER_DOCUMENT_ID, document.getId(  ) );
+        url.addParameter( PARAMETER_PORTLET_ID, portlet.getId(  ) );
+        // item.setUrl( url.getUrl( ) );
+        item.setUrl( url.getUrl(  ) );
+
+        // Date Hierarchy
         GregorianCalendar calendar = new GregorianCalendar(  );
         calendar.setTime( document.getDateModification(  ) );
         item.setHieDate( calendar.get( GregorianCalendar.YEAR ) + "/" + ( calendar.get( GregorianCalendar.MONTH ) + 1 ) +
@@ -176,7 +179,7 @@ public class SolrDocIndexer implements SolrIndexer
 
         item.setCategorie( categorie );
 
-        //The content
+        // The content
         String strContentToIndex = getContentToIndex( document, item );
         StringReader readerPage = new StringReader( strContentToIndex );
         HTMLParser parser = new HTMLParser( readerPage );
@@ -196,64 +199,7 @@ public class SolrDocIndexer implements SolrIndexer
         return item;
     }
 
-    private SolrInputDocument fillSolrInputDocumentForDocument( Portlet portlet, Document document )
-        throws IOException
-    {
-        // the item
-        SolrInputDocument doc = new SolrInputDocument(  );
-        doc.addField( SearchItem.FIELD_UID, Integer.valueOf( document.getId(  ) ).toString(  ) );
-        doc.addField( SearchItem.FIELD_DATE, document.getDateModification(  ) );
-        doc.addField( SearchItem.FIELD_TYPE, document.getType(  ) );
-        doc.addField( SearchItem.FIELD_SUMMARY, document.getSummary(  ) );
-        doc.addField( SearchItem.FIELD_TITLE, document.getTitle(  ) );
-        doc.addField( SolrItem.FIELD_SITE, SITE );
-        doc.addField( SearchItem.FIELD_ROLE, "none" );
-        doc.addField( SolrItem.FIELD_XML_CONTENT, document.getXmlValidatedContent(  ) );
-
-        // Reload the full object to get all its searchable attributes
-        UrlItem url = new UrlItem( SITE_URL );
-        url.addParameter( PARAMETER_SOLR_DOCUMENT_ID, document.getId(  ) );
-        url.addParameter( PARAMETER_PORTLET_ID, portlet.getId(  ) );
-        //item.setUrl( url.getUrl(  ) );
-        doc.addField( SearchItem.FIELD_URL, url.getUrl(  ) );
-
-        //Date Hierarchy
-        GregorianCalendar calendar = new GregorianCalendar(  );
-        calendar.setTime( document.getDateModification(  ) );
-        doc.addField( SolrItem.FIELD_HIERATCHY_DATE,
-            calendar.get( GregorianCalendar.YEAR ) + "/" + ( calendar.get( GregorianCalendar.MONTH ) + 1 ) + "/" +
-            calendar.get( GregorianCalendar.DAY_OF_MONTH ) + "/" );
-
-        List<String> categorie = new ArrayList<String>(  );
-
-        for ( Category cat : document.getCategories(  ) )
-        {
-            categorie.add( cat.getName(  ) );
-        }
-
-        doc.addField( SolrItem.FIELD_CATEGORIE, categorie );
-
-        //The content
-        String strContentToIndex = getContentToIndex( document, doc );
-        StringReader readerPage = new StringReader( strContentToIndex );
-        HTMLParser parser = new HTMLParser( readerPage );
-
-        Reader reader = parser.getReader(  );
-        int c;
-        StringBuffer sb = new StringBuffer(  );
-
-        while ( ( c = reader.read(  ) ) != -1 )
-        {
-            sb.append( String.valueOf( (char) c ) );
-        }
-
-        reader.close(  );
-        doc.addField( SolrItem.FIELD_CONTENT, sb.toString(  ) );
-
-        return doc;
-    }
-    
-    private static String getContentToIndex( Document document, SolrInputDocument item )
+    private static String getContentToIndex( Document document, SolrItem item )
     {
         StringBuffer sbContentToIndex = new StringBuffer(  );
         sbContentToIndex.append( document.getTitle(  ) );
@@ -269,8 +215,7 @@ public class SolrDocIndexer implements SolrIndexer
                     sbContentToIndex.append( " " );
 
                     //Dynamic Field
-                    item.addField( attribute.getCode(  ) + "_" + attribute.getCodeAttributeType(  ),
-                        attribute.getTextValue(  ) );
+                    item.addDynamicField( attribute.getCode(  ), attribute.getTextValue(  ) );
                 }
                 else
                 {
@@ -296,135 +241,9 @@ public class SolrDocIndexer implements SolrIndexer
                     else
                     {
                         AppLogService.debug( "No indexer found. Url to this data will be given instead" );
-                        String strName = attribute.getCode(  ) + "_" + attribute.getCodeAttributeType(  ) + "_url"; 
-                        UrlItem url = new UrlItem( DOCUMENT_ROOT_URL  );
-                        url.addParameter( PARAMETER_DOCUMENT_ID, document.getId(  ) );
-                        url.addParameter( PARAMETER_ATTRIBUTE_ID, attribute.getId(  ) );
-                        item.addField( strName, url.getUrl(  ) );
-                    }
-                }
-            }
-            else
-            {
-                if ( attribute.getName(  ).equalsIgnoreCase( "boost" ) )
-                {
-                    if ( ( attribute.getTextValue(  ) != null ) && !"".equals( attribute.getTextValue(  ) ) )
-                    {
-                        item.setDocumentBoost( Float.parseFloat( attribute.getTextValue(  ) ) );
-                    }
-                }
-            }
-        }
 
-        // Index Metadata
-        if ( document.getXmlMetadata(  ) != null )
-        {
-            sbContentToIndex.append( document.getXmlMetadata(  ) );
-        }
-
-        return sbContentToIndex.toString(  );
-    }
-    */
-	
-	private SolrItem getItem( Portlet portlet, Document document ) throws IOException
-	{
-		// the item
-		SolrItem item = new SolrItem();
-		item.setUid( Integer.valueOf( document.getId() ).toString() );
-		item.setDate( document.getDateModification() );
-		item.setType( document.getType() );
-		item.setSummary( document.getSummary() );
-		item.setTitle( document.getTitle() );
-		item.setSite( AppPropertiesService.getProperty( PROPERTY_SITE ) );
-		item.setRole( "none" );
-		item.setXmlContent( document.getXmlValidatedContent() );
-
-		// Reload the full object to get all its searchable attributes
-		UrlItem url = new UrlItem( SITE_URL );
-		url.addParameter( PARAMETER_SOLR_DOCUMENT_ID, document.getId() );
-		url.addParameter( PARAMETER_PORTLET_ID, portlet.getId() );
-		// item.setUrl( url.getUrl( ) );
-		item.setUrl( url.getUrl() );
-
-		// Date Hierarchy
-		GregorianCalendar calendar = new GregorianCalendar();
-		calendar.setTime( document.getDateModification() );
-		item.setHieDate( calendar.get( GregorianCalendar.YEAR ) + "/" + ( calendar.get( GregorianCalendar.MONTH ) + 1 ) + "/"
-				+ calendar.get( GregorianCalendar.DAY_OF_MONTH ) + "/" );
-
-		List<String> categorie = new ArrayList<String>();
-
-		for ( Category cat : document.getCategories() )
-		{
-			categorie.add( cat.getName() );
-		}
-
-		item.setCategorie( categorie );
-
-		// The content
-		String strContentToIndex = getContentToIndex( document, item );
-		StringReader readerPage = new StringReader( strContentToIndex );
-		HTMLParser parser = new HTMLParser( readerPage );
-
-		Reader reader = parser.getReader();
-		int c;
-		StringBuffer sb = new StringBuffer();
-
-		while (( c = reader.read() ) != -1)
-		{
-			sb.append( String.valueOf( ( char ) c ) );
-		}
-
-		reader.close();
-		item.setContent( sb.toString() );
-
-		return item;
-	}
-
-    private static String getContentToIndex( Document document, SolrItem item )
-    {
-        StringBuffer sbContentToIndex = new StringBuffer(  );
-        sbContentToIndex.append( document.getTitle(  ) );
-
-		for ( DocumentAttribute attribute : document.getAttributes(  ) )
-        {
-            if ( attribute.isSearchable(  ) )
-            {
-                if ( !attribute.isBinary(  ) )
-                {
-                    // Text attributes
-                    sbContentToIndex.append( attribute.getTextValue(  ) );
-                    sbContentToIndex.append( " " );
-
-                    //Dynamic Field
-                    item.addDynamicField( attribute.getCode(  ), attribute.getTextValue(  ) );
-                }
-                else
-                {
-                	// Binary file attribute
-                    // Gets indexer depending on the ContentType (ie: "application/pdf" should use a PDF indexer)
-                    IFileIndexerFactory _factoryIndexer = (IFileIndexerFactory) SpringContextService.getBean( IFileIndexerFactory.BEAN_FILE_INDEXER_FACTORY );
-                    IFileIndexer indexer = _factoryIndexer.getIndexer( attribute.getValueContentType(  ) );
-
-                    if ( indexer != null )
-                    {
-                        try
-                        {
-                            ByteArrayInputStream bais = new ByteArrayInputStream( attribute.getBinaryValue(  ) );
-                            sbContentToIndex.append( indexer.getContentToIndex( bais ) );
-                            sbContentToIndex.append( " " );
-                            bais.close(  );
-                        }
-                        catch ( IOException e )
-                        {
-                            AppLogService.error( e.getMessage(  ), e );
-                        }
-                    }
-                    else
-                    {
-                        AppLogService.debug( "No indexer found. Url to this data will be given instead" );
-                        String strName = attribute.getCode(  ) + "_" + attribute.getCodeAttributeType(  ) + "_url"; 
-                        UrlItem url = new UrlItem( DOCUMENT_ROOT_URL  );
+                        String strName = attribute.getCode(  ) + "_" + attribute.getCodeAttributeType(  ) + "_url";
+                        UrlItem url = new UrlItem( DOCUMENT_ROOT_URL );
                         url.addParameter( PARAMETER_DOCUMENT_ID, document.getId(  ) );
                         url.addParameter( PARAMETER_ATTRIBUTE_ID, attribute.getId(  ) );
                         item.addDynamicField( strName, url.getUrl(  ) );
@@ -472,26 +291,152 @@ public class SolrDocIndexer implements SolrIndexer
     /**
      * {@inheritDoc}
      */
-	public List<Field> getAdditionalFields()
-	{
-		Collection<DocumentType> cAllTypes = DocumentTypeHome.findAll();
-		List<Field> lstFields = new ArrayList<Field>();
-		for( DocumentType type : cAllTypes )
-		{
-			DocumentAttributeHome.setDocumentTypeAttributes( type );
-			for( DocumentAttribute attribute : type.getAttributes() )
-			{
-				Field field = new Field();
-				field.setEnableFacet( true );
-				field.setDescription( attribute.getDescription() );
-				field.setIsFacet( true );
-				field.setName( attribute.getCode() + SolrItem.DYNAMIC_TEXT_FIELD_SUFFIX );
-				field.setLabel( attribute.getName() );
-				
-				lstFields.add( field );
-			}
-		}
-		
-		return lstFields;
-	}
+    public List<Field> getAdditionalFields(  )
+    {
+        Collection<DocumentType> cAllTypes = DocumentTypeHome.findAll(  );
+        List<Field> lstFields = new ArrayList<Field>(  );
+
+        for ( DocumentType type : cAllTypes )
+        {
+            DocumentAttributeHome.setDocumentTypeAttributes( type );
+
+            for ( DocumentAttribute attribute : type.getAttributes(  ) )
+            {
+                Field field = new Field(  );
+                field.setEnableFacet( true );
+                field.setDescription( attribute.getDescription(  ) );
+                field.setIsFacet( true );
+                field.setName( attribute.getCode(  ) + SolrItem.DYNAMIC_TEXT_FIELD_SUFFIX );
+                field.setLabel( attribute.getName(  ) );
+
+                lstFields.add( field );
+            }
+        }
+
+        return lstFields;
+    }
+
+    /**
+    * Builds a document which will be used by solr during the indexing of the pages of the site with the following
+    * fields : summary, uid, url, contents, title and description.
+    *
+    * @param document the document to index
+    * @param strUrl the url of the documents
+    * @param strRole the lutece role of the page associate to the document
+    * @param strPortletDocumentId the document id concatened to the id portlet with a & in the middle
+    * @return the built Document
+    * @throws IOException The IO Exception
+    * @throws InterruptedException The InterruptedException
+    */
+    private SolrItem getDocument( Document document, String strUrl, String strRole, String strPortletDocumentId )
+        throws IOException, InterruptedException
+    {
+        // make a new, empty document
+        SolrItem item = new SolrItem(  );
+
+        // Add the url as a field named "url".  Use an UnIndexed field, so
+        // that the url is just stored with the document, but is not searchable.
+        item.setUrl( strUrl );
+
+        // Add the PortletDocumentId as a field named "document_portlet_id".  
+        item.setDocPortletId( strPortletDocumentId );
+
+        // Add the last modified date of the file a field named "modified".
+        // Use a field that is indexed (i.e. searchable), but don't tokenize
+        // the field into words.
+        item.setDate( document.getDateModification(  ) );
+
+        // Add the uid as a field, so that index can be incrementally maintained.
+        // This field is not stored with document, it is indexed, but it is not
+        // tokenized prior to indexing.
+        String strIdDocument = String.valueOf( document.getId(  ) );
+        item.setUid( getResourceUid( strIdDocument, DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE ) );
+
+        String strContentToIndex = getContentToIndex( document, item );
+        StringReader readerPage = new StringReader( strContentToIndex );
+        HTMLParser parser = new HTMLParser( readerPage );
+
+        //the content of the article is recovered in the parser because this one
+        //had replaced the encoded caracters (as &eacute;) by the corresponding special caracter (as ?)
+        Reader reader = parser.getReader(  );
+        int c;
+        StringBuilder sb = new StringBuilder(  );
+
+        while ( ( c = reader.read(  ) ) != -1 )
+        {
+            sb.append( String.valueOf( (char) c ) );
+        }
+
+        reader.close(  );
+
+        // Add the tag-stripped contents as a Reader-valued Text field so it will
+        // get tokenized and indexed.
+        item.setContent( sb.toString(  ) );
+
+        // Add the title as a separate Text field, so that it can be searched
+        // separately.
+        item.setTitle( document.getTitle(  ) );
+
+        item.setType( document.getType(  ) );
+
+        item.setRole( strRole );
+
+        item.setSite( AppPropertiesService.getProperty( PROPERTY_SITE ) );
+
+        // return the document
+        return item;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public List<SolrItem> getDocuments( String strIdDocument )
+    {
+        List<SolrItem> lstItems = new ArrayList<SolrItem>(  );
+
+        int nIdDocument = Integer.parseInt( strIdDocument );
+        Document document = DocumentHome.findByPrimaryKey( nIdDocument );
+        Iterator<Portlet> it = PublishingService.getInstance(  ).getPortletsByDocumentId( Integer.toString( nIdDocument ) )
+                                                .iterator(  );
+        String strBaseUrl = AppPropertiesService.getProperty( PROPERTY_PAGE_BASE_URL );
+        Page page;
+
+        try
+        {
+            while ( it.hasNext(  ) )
+            {
+                Portlet portlet = it.next(  );
+                UrlItem url = new UrlItem( strBaseUrl );
+                url.addParameter( PARAMETER_DOCUMENT_ID, nIdDocument );
+                url.addParameter( PARAMETER_PORTLET_ID, portlet.getId(  ) );
+
+                String strPortletDocumentId = nIdDocument + "&" + portlet.getId(  );
+                page = PageHome.getPage( portlet.getPageId(  ) );
+
+                lstItems.add( getDocument( document, url.getUrl(  ), page.getRole(  ), strPortletDocumentId ) );
+            }
+        }
+        catch ( Exception e )
+        {
+            throw new RuntimeException( e );
+        }
+
+        return lstItems;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public List<String> getResourcesName(  )
+    {
+        return LIST_RESSOURCES_NAME;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public String getResourceUid( String strResourceId, String strResourceType )
+    {
+        return strResourceId;
+    }
 }
