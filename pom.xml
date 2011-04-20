@@ -45,4 +45,16 @@
 		    <version>2.1.7</version>
 		</dependency>
 	</dependencies>	
+	
+	<properties>
+        <componentName>document-solr</componentName>
+        <jiraProjectName>DOCUMENTSOLR</jiraProjectName>
+        <jiraComponentId>10521</jiraComponentId>
+    </properties>
+    
+	<scm>
+        <connection>scm:svn:http://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/cms/module-document-solr</connection>
+        <developerConnection>scm:svn:https://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/cms/module-document-solr</developerConnection>
+        <url>http://dev.lutece.paris.fr/viewvc/lutece/portal/trunk/plugins/cms/module-document-solr</url>
+    </scm>
 </project>
