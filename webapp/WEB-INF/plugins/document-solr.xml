@@ -19,7 +19,7 @@
 	</core-version-dependency>
 
 
-	<db-pool-required>1</db-pool-required>
+	<db-pool-required>0</db-pool-required>
 	
 
 	<!-- Administration interface parameters -->
