@@ -90,6 +90,7 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
     private static final String DOCUMENT_ROOT_URL = "@base_url@document";
     private static final List<String> LIST_RESSOURCES_NAME = new ArrayList<String>(  );
+    private static final String SHORT_NAME = "doc";
 
     /**
      * Creates a new SolrPageIndexer
@@ -137,7 +138,7 @@ public class SolrDocIndexer implements SolrIndexer
     {
         // the item
         SolrItem item = new SolrItem(  );
-        item.setUid( Integer.valueOf( document.getId(  ) ).toString(  ) );
+        item.setUid( getResourceUid( Integer.valueOf( document.getId(  ) ).toString(  ), DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE ) );
         item.setDate( document.getDateModification(  ) );
         item.setType( document.getType(  ) );
         item.setSummary( document.getSummary(  ) );
@@ -428,6 +429,9 @@ public class SolrDocIndexer implements SolrIndexer
      */
     public String getResourceUid( String strResourceId, String strResourceType )
     {
-        return strResourceId;
+    	StringBuffer sb = new StringBuffer( strResourceId );
+    	sb.append( SolrConstants.CONSTANT_UNDERSCORE ).append( SHORT_NAME );
+        
+    	return sb.toString(  );
     }
 }
