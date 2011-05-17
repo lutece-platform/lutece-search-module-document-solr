@@ -33,6 +33,18 @@
  */
 package fr.paris.lutece.plugins.document.modules.solr.indexer;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.GregorianCalendar;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.lucene.demo.html.HTMLParser;
+
 import fr.paris.lutece.plugins.document.business.Document;
 import fr.paris.lutece.plugins.document.business.DocumentHome;
 import fr.paris.lutece.plugins.document.business.DocumentType;
@@ -60,19 +72,6 @@ import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
 import fr.paris.lutece.util.url.UrlItem;
 
-import org.apache.lucene.demo.html.HTMLParser;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.GregorianCalendar;
-import java.util.Iterator;
-import java.util.List;
-
 
 /**
  * The indexer service for Solr.
@@ -80,9 +79,6 @@ import java.util.List;
  */
 public class SolrDocIndexer implements SolrIndexer
 {
-    private static final String PROPERTY_PAGE_BASE_URL = "document.documentIndexer.baseUrl";
-    private static final String SITE_URL = AppPropertiesService.getProperty( PROPERTY_PAGE_BASE_URL );
-
     // Not used
     // private static final String PARAMETER_SOLR_DOCUMENT_ID = "solr_document_id";
     private static final String PARAMETER_PORTLET_ID = "portlet_id";
@@ -90,7 +86,6 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PROPERTY_NAME = "document-solr.indexer.name";
     private static final String PROPERTY_DESCRIPTION = "document-solr.indexer.description";
     private static final String PROPERTY_VERSION = "document-solr.indexer.version";
-    private static final String PROPERTY_SITE = "lutece.name";
     private static final String PARAMETER_DOCUMENT_ID = "document_id";
     private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
     private static final String DOCUMENT_ROOT_URL = "@base_url@document";
@@ -147,7 +142,7 @@ public class SolrDocIndexer implements SolrIndexer
         item.setType( document.getType(  ) );
         item.setSummary( document.getSummary(  ) );
         item.setTitle( document.getTitle(  ) );
-        item.setSite( AppPropertiesService.getProperty( PROPERTY_SITE ) );
+        item.setSite( SolrIndexerService.getWebAppName(  ) );
         item.setRole( "none" );
 
         if ( portlet != null )
@@ -158,10 +153,9 @@ public class SolrDocIndexer implements SolrIndexer
         item.setXmlContent( document.getXmlValidatedContent(  ) );
 
         // Reload the full object to get all its searchable attributes
-        UrlItem url = new UrlItem( SITE_URL );
+        UrlItem url = new UrlItem( SolrIndexerService.getBaseUrl(  ) );
         url.addParameter( PARAMETER_DOCUMENT_ID, document.getId(  ) );
         url.addParameter( PARAMETER_PORTLET_ID, portlet.getId(  ) );
-        // item.setUrl( url.getUrl( ) );
         item.setUrl( url.getUrl(  ) );
 
         // Date Hierarchy
@@ -381,7 +375,7 @@ public class SolrDocIndexer implements SolrIndexer
 
         item.setRole( strRole );
 
-        item.setSite( AppPropertiesService.getProperty( PROPERTY_SITE ) );
+        item.setSite( SolrIndexerService.getWebAppName(  ) );
 
         // return the document
         return item;
@@ -398,20 +392,17 @@ public class SolrDocIndexer implements SolrIndexer
         Document document = DocumentHome.findByPrimaryKey( nIdDocument );
         Iterator<Portlet> it = PublishingService.getInstance(  ).getPortletsByDocumentId( Integer.toString( nIdDocument ) )
                                                 .iterator(  );
-        String strBaseUrl = AppPropertiesService.getProperty( PROPERTY_PAGE_BASE_URL );
-        Page page;
-
         try
         {
             while ( it.hasNext(  ) )
             {
                 Portlet portlet = it.next(  );
-                UrlItem url = new UrlItem( strBaseUrl );
+                UrlItem url = new UrlItem( SolrIndexerService.getBaseUrl(  ) );
                 url.addParameter( PARAMETER_DOCUMENT_ID, nIdDocument );
                 url.addParameter( PARAMETER_PORTLET_ID, portlet.getId(  ) );
 
                 String strPortletDocumentId = nIdDocument + "&" + portlet.getId(  );
-                page = PageHome.getPage( portlet.getPageId(  ) );
+                Page page = PageHome.getPage( portlet.getPageId(  ) );
 
                 lstItems.add( getDocument( document, url.getUrl(  ), page.getRole(  ), strPortletDocumentId ) );
             }
