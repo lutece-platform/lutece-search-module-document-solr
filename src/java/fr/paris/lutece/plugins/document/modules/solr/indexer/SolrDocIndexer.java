@@ -66,7 +66,6 @@ import fr.paris.lutece.portal.business.page.Page;
 import fr.paris.lutece.portal.business.page.PageHome;
 import fr.paris.lutece.portal.business.portlet.Portlet;
 import fr.paris.lutece.portal.business.portlet.PortletHome;
-import fr.paris.lutece.portal.service.message.SiteMessageException;
 import fr.paris.lutece.portal.service.spring.SpringContextService;
 import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
@@ -88,9 +87,10 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PROPERTY_VERSION = "document-solr.indexer.version";
     private static final String PARAMETER_DOCUMENT_ID = "document_id";
     private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
-    private static final String DOCUMENT_ROOT_URL = "@base_url@document";
     private static final List<String> LIST_RESSOURCES_NAME = new ArrayList<String>(  );
     private static final String SHORT_NAME = "doc";
+    
+    private static final String DOC_INDEXATION_ERROR = "[SolrDocIndexer] An error occured during the indexation of the document number ";
 
     /**
      * Creates a new SolrPageIndexer
@@ -108,26 +108,38 @@ public class SolrDocIndexer implements SolrIndexer
     /**
      * {@inheritDoc}
      */
-    public void indexDocuments(  ) throws IOException, InterruptedException, SiteMessageException
+    public List<String> indexDocuments(  )
     {
+    	List<String> lstErrors = new ArrayList<String>(  );
+    	
         //Page page;
         for ( Portlet portlet : PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) ) )
         {
             //page = PageHome.getPage( portlet.getPageId(  ) );
             for ( Document d : PublishingService.getInstance(  ).getPublishedDocumentsByPortletId( portlet.getId(  ) ) )
             {
-                //The Lucene document of plugin-document
-                Document document = DocumentHome.findByPrimaryKey( d.getId(  ) );
+            	try
+            	{
+            		//The Lucene document of plugin-document
+            		Document document = DocumentHome.findByPrimaryKey( d.getId(  ) );
 
-                // Generates the item to index
-                SolrItem item = getItem( portlet, document );
+            		// Generates the item to index
+            		SolrItem item = getItem( portlet, document );
 
-                if ( item != null )
-                {
-                    SolrIndexerService.write( item );
-                }
+            		if ( item != null )
+            		{
+            			SolrIndexerService.write( item );
+            		}
+            	}
+            	catch ( Exception e )
+            	{
+            		lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
+    				AppLogService.error( DOC_INDEXATION_ERROR + d.getId(  ), e );
+    			}
             }
         }
+        
+        return lstErrors;
     }
 
     /**
@@ -238,7 +250,7 @@ public class SolrDocIndexer implements SolrIndexer
                         AppLogService.debug( "No indexer found. Url to this data will be given instead" );
 
                         String strName = attribute.getCode(  ) + "_" + attribute.getCodeAttributeType(  ) + "_url";
-                        UrlItem url = new UrlItem( DOCUMENT_ROOT_URL );
+                        UrlItem url = new UrlItem( SolrIndexerService.getBaseUrl(  ) );
                         url.addParameter( PARAMETER_DOCUMENT_ID, document.getId(  ) );
                         url.addParameter( PARAMETER_ATTRIBUTE_ID, attribute.getId(  ) );
                         item.addDynamicField( strName, url.getUrl(  ) );
