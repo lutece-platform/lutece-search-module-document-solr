@@ -2,7 +2,7 @@
 
 	<name>document-solr</name>
 	<class>fr.paris.lutece.plugins.document.modules.solr.service.DocumentSolrPlugin</class>
-	<version>1.0.0</version>
+	<version>1.0.1</version>
 	<documentation/>
 	<installation/>
 	<changes/>
