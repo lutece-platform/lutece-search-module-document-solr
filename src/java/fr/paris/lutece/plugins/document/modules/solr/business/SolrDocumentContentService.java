@@ -33,19 +33,6 @@
  */
 package fr.paris.lutece.plugins.document.modules.solr.business;
 
-import java.io.FileInputStream;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.xml.transform.Source;
-import javax.xml.transform.stream.StreamSource;
-
 import fr.paris.lutece.plugins.document.business.Document;
 import fr.paris.lutece.plugins.document.business.DocumentHome;
 import fr.paris.lutece.plugins.document.business.DocumentType;
@@ -53,8 +40,6 @@ import fr.paris.lutece.plugins.document.business.DocumentTypeHome;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortlet;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
 import fr.paris.lutece.plugins.document.business.publication.DocumentPublication;
-import fr.paris.lutece.plugins.document.modules.comment.business.DocumentComment;
-import fr.paris.lutece.plugins.document.modules.comment.business.DocumentCommentHome;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
 import fr.paris.lutece.plugins.search.solr.business.SolrSearchEngine;
 import fr.paris.lutece.plugins.search.solr.util.SolrConstants;
@@ -80,6 +65,19 @@ import fr.paris.lutece.portal.web.constants.Parameters;
 import fr.paris.lutece.util.ReferenceList;
 import fr.paris.lutece.util.date.DateUtil;
 import fr.paris.lutece.util.html.HtmlTemplate;
+
+import java.io.FileInputStream;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.xml.transform.Source;
+import javax.xml.transform.stream.StreamSource;
 
 
 /**
@@ -172,9 +170,8 @@ public class SolrDocumentContentService extends ContentService
                 int nDocumentId = Integer.parseInt( strDocumentId );
                 Document document = DocumentHome.findByPrimaryKeyWithoutBinaries( nDocumentId );
 
-                if ( ( document != null ) && ( document.getAcceptSiteComments(  ) == 0 ) )
+                if ( document != null )
                 {
-                    //If document does not accept comments, we put the document in cache
                     putInCache( strKey, strPage );
                 }
             }
@@ -330,12 +327,10 @@ public class SolrDocumentContentService extends ContentService
                     type.getContentServiceXslSource(  ), null, null );
 
             model.put( MARK_DOCUMENT, strDocument );
-            model.put( MARK_ACCEPT_COMMENT, document.getAcceptSiteComments(  ) );
             model.put( MARK_PORTLET, getPortlet( request, strPortletId, nMode ) );
             model.put( MARK_CATEGORY, getRelatedDocumentsPortlet( request, document, nPortletId, nMode ) );
             model.put( MARK_DOCUMENT_ID, strDocumentId );
             model.put( MARK_PORTLET_ID, strPortletId );
-            model.put( MARK_DOCUMENT_COMMENTS, getComments( strDocumentId, strPortletId, nMode, request ) );
 
             HtmlTemplate template = AppTemplateService.getTemplate( getTemplatePage( document ), request.getLocale(  ),
                     model );
@@ -518,69 +513,6 @@ public class SolrDocumentContentService extends ContentService
             model.put( MARK_PORTLET_ID_LIST, listDocumentPortlet );
 
             HtmlTemplate templateComments = AppTemplateService.getTemplate( TEMPLATE_DOCUMENT_CATEGORIES,
-                    request.getLocale(  ), model );
-
-            return templateComments.getHtml(  );
-        }
-        else
-        {
-            return SolrConstants.CONSTANT_EMPTY_STRING;
-        }
-    }
-
-    /**
-     * Returns the HTML code for the comments area
-     * @param strDocumentId the identifier of the document
-     * @param strPortletId The identifier of the documents list portlet where the documznt has been published.
-     * @param nMode The current mode.
-     * @param request The HTTP servlet request
-     * @return the HTML code corresponding to the comment area (empty string if the document cannot be commented)
-     */
-    private static String getComments( String strDocumentId, String strPortletId, int nMode, HttpServletRequest request )
-    {
-        int nDocumentId = Integer.parseInt( strDocumentId );
-        Document document = DocumentHome.findByPrimaryKeyWithoutBinaries( nDocumentId );
-
-        int nMailingListId = document.getMailingListId(  );
-        String strMailingListId = Integer.toString( nMailingListId );
-
-        Map<String, Object> model = new HashMap<String, Object>(  );
-        model.put( MARK_DOCUMENT, document );
-
-        if ( ( nMode != MODE_ADMIN ) && ( document.getAcceptSiteComments(  ) == 1 ) )
-        {
-            // if the addition of a comment has been requested, display the form
-            String strComment = request.getParameter( PARAMETER_COMMENT_DOCUMENT );
-
-            // check mandatory fields
-            String strMandatoryField = request.getParameter( PARAMETER_MANDATORY_FIELD );
-            strMandatoryField = ( strMandatoryField != null ) ? strMandatoryField : "";
-
-            // check xss errors
-            String strXssError = request.getParameter( PARAMETER_XSS_ERROR );
-            strXssError = ( strXssError != null ) ? strXssError : "";
-
-            // check emails errors
-            String strCheckEmail = request.getParameter( PARAMETER_CHECK_EMAIL );
-            strCheckEmail = ( strCheckEmail != null ) ? strCheckEmail : "";
-
-            if ( ACCEPT_SITE_COMMENTS.equals( strComment ) )
-            {
-                // Generate the add document form
-                model.put( MARK_DOCUMENT_COMMENT_FORM,
-                    getAddCommentForm( request, strDocumentId, strPortletId, strMailingListId, strXssError,
-                        strCheckEmail, strMandatoryField ) );
-            }
-            else
-            {
-                model.put( MARK_DOCUMENT_COMMENT_FORM, SolrConstants.CONSTANT_EMPTY_STRING );
-            }
-
-            // Generate the list of comments            
-            List<DocumentComment> documentComments = DocumentCommentHome.findPublishedByDocument( nDocumentId );
-            model.put( MARK_DOCUMENT_COMMENTS_LIST, documentComments );
-
-            HtmlTemplate templateComments = AppTemplateService.getTemplate( TEMPLATE_DOCUMENT_COMMENTS,
                     request.getLocale(  ), model );
 
             return templateComments.getHtml(  );
