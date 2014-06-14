@@ -67,6 +67,7 @@ import fr.paris.lutece.util.date.DateUtil;
 import fr.paris.lutece.util.html.HtmlTemplate;
 
 import java.io.FileInputStream;
+
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -76,6 +77,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import javax.servlet.http.HttpServletRequest;
+
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 
