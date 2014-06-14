@@ -8,7 +8,7 @@
 	<groupId>fr.paris.lutece.plugins</groupId>
 	<artifactId>module-document-solr</artifactId>
 	<packaging>lutece-plugin</packaging>
-	<version>1.0.2</version>
+	<version>2.0.0-SNAPSHOT</version>
 	<name>Lutece document solr module</name>
 	<repositories>
 		<repository>
@@ -53,8 +53,8 @@
     </properties>
     
 	<scm>
-        <connection>scm:svn:http://dev.lutece.paris.fr/svn/lutece/portal/tags/module-document-solr-1.0.2</connection>
-        <developerConnection>scm:svn:https://dev.lutece.paris.fr/svn/lutece/portal/tags/module-document-solr-1.0.2</developerConnection>
-        <url>http://dev.lutece.paris.fr/viewvc/lutece/portal/tags/module-document-solr-1.0.2</url>
+        <connection>scm:svn:http://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/cms/module-document-solr</connection>
+        <developerConnection>scm:svn:https://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/cms/module-document-solr</developerConnection>
+        <url>http://dev.lutece.paris.fr/viewvc/lutece/portal/trunk/plugins/cms/module-document-solr</url>
     </scm>
 </project>
