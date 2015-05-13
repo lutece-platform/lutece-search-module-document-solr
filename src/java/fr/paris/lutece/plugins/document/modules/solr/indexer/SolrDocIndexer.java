@@ -63,6 +63,7 @@ import fr.paris.lutece.util.url.UrlItem;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.html.HtmlParser;
 import org.apache.tika.sax.BodyContentHandler;
 
 import org.xml.sax.ContentHandler;
@@ -76,7 +77,6 @@ import java.util.Collection;
 import java.util.GregorianCalendar;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.tika.parser.html.HtmlParser;
 
 
 /**
@@ -155,7 +155,7 @@ public class SolrDocIndexer implements SolrIndexer
      * @param portlet The portlet
      * @param document The document
      * @return The item
-     * @throws IOException 
+     * @throws IOException
      */
     private SolrItem getItem( Portlet portlet, Document document )
         throws IOException
@@ -201,12 +201,13 @@ public class SolrDocIndexer implements SolrIndexer
 
         // The content
         String strContentToIndex = getContentToIndex( document, item );
-        ContentHandler handler = new BodyContentHandler( );
-        Metadata metadata = new Metadata( );
+        ContentHandler handler = new BodyContentHandler(  );
+        Metadata metadata = new Metadata(  );
+
         try
         {
-            new HtmlParser( ).parse( new ByteArrayInputStream( strContentToIndex.getBytes( ) ), handler, metadata,
-                    new ParseContext( ) );
+            new HtmlParser(  ).parse( new ByteArrayInputStream( strContentToIndex.getBytes(  ) ), handler, metadata,
+                new ParseContext(  ) );
         }
         catch ( SAXException e )
         {
@@ -216,6 +217,7 @@ public class SolrDocIndexer implements SolrIndexer
         {
             throw new AppException( "Error during document parsing." );
         }
+
         item.setContent( handler.toString(  ) );
 
         return item;
@@ -389,12 +391,13 @@ public class SolrDocIndexer implements SolrIndexer
         item.setUid( getResourceUid( strIdDocument, DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE ) );
 
         String strContentToIndex = getContentToIndex( document, item );
-        ContentHandler handler = new BodyContentHandler( );
-        Metadata metadata = new Metadata( );
+        ContentHandler handler = new BodyContentHandler(  );
+        Metadata metadata = new Metadata(  );
+
         try
         {
-            new org.apache.tika.parser.html.HtmlParser( ).parse( new ByteArrayInputStream( strContentToIndex.getBytes( ) ), handler, metadata,
-                    new ParseContext( ) );
+            new org.apache.tika.parser.html.HtmlParser(  ).parse( new ByteArrayInputStream( 
+                    strContentToIndex.getBytes(  ) ), handler, metadata, new ParseContext(  ) );
         }
         catch ( SAXException e )
         {
