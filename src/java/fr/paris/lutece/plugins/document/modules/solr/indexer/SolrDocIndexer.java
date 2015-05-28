@@ -32,7 +32,6 @@
  * License 1.0
  */
 package fr.paris.lutece.plugins.document.modules.solr.indexer;
-
 import fr.paris.lutece.plugins.document.business.Document;
 import fr.paris.lutece.plugins.document.business.DocumentHome;
 import fr.paris.lutece.plugins.document.business.DocumentType;
@@ -54,24 +53,25 @@ import fr.paris.lutece.portal.business.page.Page;
 import fr.paris.lutece.portal.business.page.PageHome;
 import fr.paris.lutece.portal.business.portlet.Portlet;
 import fr.paris.lutece.portal.business.portlet.PortletHome;
+import fr.paris.lutece.portal.service.plugin.PluginService;
 import fr.paris.lutece.portal.service.spring.SpringContextService;
 import fr.paris.lutece.portal.service.util.AppException;
 import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
+import fr.paris.lutece.portal.web.admin.PluginAdminPageJspBean;
 import fr.paris.lutece.util.url.UrlItem;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.html.HtmlParser;
 import org.apache.tika.sax.BodyContentHandler;
-
 import org.xml.sax.ContentHandler;
 import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.GregorianCalendar;
@@ -98,6 +98,9 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String SHORT_NAME = "doc";
     private static final String DOC_INDEXATION_ERROR = "[SolrDocIndexer] An error occured during the indexation of the document number ";
 
+    private static final String PARAMETER_TYPE_NUMERICTEXT = "numerictext";
+
+    
     /**
      * Creates a new SolrPageIndexer
      */
@@ -245,7 +248,14 @@ public class SolrDocIndexer implements SolrIndexer
                     sbContentToIndex.append( " " );
 
                     //Dynamic Field
-                    item.addDynamicField( attribute.getCode(  ), attribute.getTextValue(  ) );
+                
+                    if (PARAMETER_TYPE_NUMERICTEXT.equalsIgnoreCase(attribute.getCodeAttributeType()))
+                    {
+                    	Long nI = StringUtils.isNotEmpty(attribute.getTextValue(  )) && StringUtils.isNumeric(attribute.getTextValue(  ).trim()) ? Long.valueOf(attribute.getTextValue(  ).trim()) : 0 ;
+                    	item.addDynamicField( attribute.getCode(  ), nI);
+                    }
+                    else	
+                    	item.addDynamicField( attribute.getCode(  ), attribute.getTextValue(  ) );
                 }
                 else
                 {
