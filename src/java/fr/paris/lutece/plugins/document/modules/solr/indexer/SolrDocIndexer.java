@@ -89,6 +89,7 @@ public class SolrDocIndexer implements SolrIndexer
     // private static final String PARAMETER_SOLR_DOCUMENT_ID = "solr_document_id";
     private static final String PARAMETER_PORTLET_ID = "portlet_id";
     private static final String PROPERTY_INDEXER_ENABLE = "solr.indexer.document.enable";
+    private static final String PROPERTY_DOCUMENT_MAX_CHARS = "document-solr.indexer.document.characters.limit";
     private static final String PROPERTY_NAME = "document-solr.indexer.name";
     private static final String PROPERTY_DESCRIPTION = "document-solr.indexer.description";
     private static final String PROPERTY_VERSION = "document-solr.indexer.version";
@@ -100,6 +101,7 @@ public class SolrDocIndexer implements SolrIndexer
 
     private static final String PARAMETER_TYPE_NUMERICTEXT = "numerictext";
 
+    private static final Integer PARAMETER_DOCUMENT_MAX_CHARS = Integer.parseInt(AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS ));
     
     /**
      * Creates a new SolrPageIndexer
@@ -204,7 +206,16 @@ public class SolrDocIndexer implements SolrIndexer
 
         // The content
         String strContentToIndex = getContentToIndex( document, item );
-        ContentHandler handler = new BodyContentHandler(  );
+        ContentHandler handler = null;
+        if ( PARAMETER_DOCUMENT_MAX_CHARS != null )
+        {
+        	handler = new BodyContentHandler( PARAMETER_DOCUMENT_MAX_CHARS );
+        }
+        else
+        {
+        	handler = new BodyContentHandler( );
+        }
+        	
         Metadata metadata = new Metadata(  );
 
         try
