@@ -85,6 +85,7 @@ import java.util.List;
  */
 public class SolrDocIndexer implements SolrIndexer
 {
+    public static final String BEAN_NAME = "document-solr.solrDocIndexer";
     // Not used
     // private static final String PARAMETER_SOLR_DOCUMENT_ID = "solr_document_id";
     private static final String PARAMETER_PORTLET_ID = "portlet_id";

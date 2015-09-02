@@ -40,7 +40,9 @@ import fr.paris.lutece.plugins.document.business.DocumentTypeHome;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortlet;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
 import fr.paris.lutece.plugins.document.business.publication.DocumentPublication;
+import fr.paris.lutece.plugins.document.modules.solr.indexer.SolrDocIndexer;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
+import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
 import fr.paris.lutece.plugins.search.solr.business.SolrSearchEngine;
 import fr.paris.lutece.plugins.search.solr.util.SolrConstants;
 import fr.paris.lutece.portal.business.page.Page;
@@ -58,6 +60,7 @@ import fr.paris.lutece.portal.service.portal.PortalService;
 import fr.paris.lutece.portal.service.security.LuteceUser;
 import fr.paris.lutece.portal.service.security.SecurityService;
 import fr.paris.lutece.portal.service.security.UserNotSignedException;
+import fr.paris.lutece.portal.service.spring.SpringContextService;
 import fr.paris.lutece.portal.service.template.AppTemplateService;
 import fr.paris.lutece.portal.service.util.AppPathService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
@@ -318,7 +321,8 @@ public class SolrDocumentContentService extends ContentService
                 }
             }
 
-            String xmlContent = SolrSearchEngine.getInstance(  ).getDocumentHighLighting( strDocumentId, terms );
+            SolrDocIndexer solrDocIndexer = SpringContextService.getBean(SolrDocIndexer.BEAN_NAME);
+            String xmlContent = SolrSearchEngine.getInstance(  ).getDocumentHighLighting(solrDocIndexer.getResourceUid(strDocumentId, DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE), terms );
 
             if ( xmlContent == null )
             {
