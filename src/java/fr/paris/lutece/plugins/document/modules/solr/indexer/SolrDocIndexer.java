@@ -42,6 +42,7 @@ import fr.paris.lutece.plugins.document.business.category.Category;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
 import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
+import fr.paris.lutece.plugins.leaflet.business.GeolocItem;
 import fr.paris.lutece.plugins.lucene.service.indexer.IFileIndexer;
 import fr.paris.lutece.plugins.lucene.service.indexer.IFileIndexerFactory;
 import fr.paris.lutece.plugins.search.solr.business.field.Field;
@@ -101,6 +102,7 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String DOC_INDEXATION_ERROR = "[SolrDocIndexer] An error occured during the indexation of the document number ";
 
     private static final String PARAMETER_TYPE_NUMERICTEXT = "numerictext";
+    private static final String PARAMETER_TYPE_GEOLOC = "geoloc";
 
     private static final Integer PARAMETER_DOCUMENT_MAX_CHARS = Integer.parseInt(AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS ));
     
@@ -256,8 +258,25 @@ public class SolrDocIndexer implements SolrIndexer
             {
                 if ( !attribute.isBinary(  ) )
                 {
-                    // Text attributes
-                    sbContentToIndex.append( attribute.getTextValue(  ) );
+                    if ( PARAMETER_TYPE_GEOLOC.equalsIgnoreCase( attribute.getCodeAttributeType(  ) ) )
+                    {
+                        // Geojson attribute, put the address as text if it exists
+                        String address = null;
+                        GeolocItem geolocItem = null;
+                        try {
+                            geolocItem = GeolocItem.fromJSON( attribute.getTextValue(  ) );
+                        } catch ( IOException e ) {
+                            AppLogService.error( "SolrDocumentIndexer, error parsing JSON" + e );
+                        }
+                        if (geolocItem != null && geolocItem.getAddress(  ) != null) {
+                            sbContentToIndex.append( geolocItem.getAddress(  ) );
+                        }
+                    }
+                    else
+                    {
+                        // Text attributes
+                        sbContentToIndex.append( attribute.getTextValue(  ) );
+                    }
                     sbContentToIndex.append( " " );
 
                     //Dynamic Field
@@ -266,6 +285,11 @@ public class SolrDocIndexer implements SolrIndexer
                     {
                     	Long nI = StringUtils.isNotEmpty(attribute.getTextValue(  )) && StringUtils.isNumeric(attribute.getTextValue(  ).trim()) ? Long.valueOf(attribute.getTextValue(  ).trim()) : 0 ;
                     	item.addDynamicField( attribute.getCode(  ), nI);
+                    }
+                    else if ( PARAMETER_TYPE_GEOLOC.equalsIgnoreCase( attribute.getCodeAttributeType(  ) ) )
+                    {
+                        item.addDynamicFieldGeoloc( attribute.getCode(  ), attribute.getTextValue(  ),
+                            document.getCodeDocumentType(  ) );
                     }
                     else	
                     	item.addDynamicField( attribute.getCode(  ), attribute.getTextValue(  ) );
