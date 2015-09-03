@@ -248,6 +248,7 @@ public class SolrDocIndexer implements SolrIndexer
     {
         StringBuilder sbContentToIndex = new StringBuilder(  );
         sbContentToIndex.append( document.getTitle(  ) );
+        sbContentToIndex.append( " " );
 
         for ( DocumentAttribute attribute : document.getAttributes(  ) )
         {
