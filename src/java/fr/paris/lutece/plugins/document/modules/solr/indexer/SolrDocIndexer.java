@@ -128,6 +128,7 @@ public class SolrDocIndexer implements SolrIndexer
     public List<String> indexDocuments(  )
     {
         List<String> lstErrors = new ArrayList<String>(  );
+        List<Integer> listDocument = new ArrayList<Integer>();
 
         //Page page;
         List<Portlet> portletList= PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) );
@@ -135,20 +136,22 @@ public class SolrDocIndexer implements SolrIndexer
         
         for ( Portlet portlet : portletList )
         {
-            //page = PageHome.getPage( portlet.getPageId(  ) );
             for ( Document d : PublishingService.getInstance(  ).getPublishedDocumentsByPortletId( portlet.getId(  ) ) )
             {
                 try
                 {
                     //The Lucene document of plugin-document
-                    Document document = DocumentHome.findByPrimaryKey( d.getId(  ) );
-
-                    // Generates the item to index
-                    SolrItem item = getItem( portlet, document );
-
-                    if ( item != null )
-                    {
-                        SolrIndexerService.write( item );
+                    Document document = DocumentHome.findByPrimaryKey( d.getId(  ) );      
+                    
+                    if( document != null && !listDocument.contains( document.getId( ) ) ){
+	                    // Generates the item to index
+	                    SolrItem item = getItem( portlet, document );
+	
+	                    if ( item != null )
+	                    {
+	                        SolrIndexerService.write( item );
+	                    }
+	                    listDocument.add( document.getId( ) );
                     }
                 }
                 catch ( Exception e )
