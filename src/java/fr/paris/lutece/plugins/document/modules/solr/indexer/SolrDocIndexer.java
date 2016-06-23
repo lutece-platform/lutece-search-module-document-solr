@@ -158,6 +158,7 @@ public class SolrDocIndexer implements SolrIndexer
                 {
                     lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
                     AppLogService.error( DOC_INDEXATION_ERROR + d.getId(  ), e );
+                   
                 }
             }
         }
@@ -169,8 +170,9 @@ public class SolrDocIndexer implements SolrIndexer
      * iNDEX LIST oF DICUMENT PUBLISHED
      * @param listIdDocument
      * @return error LIST
+     * @throws Exception 
      */
-    public List<String> indexListDocuments(  List<Integer> listIdDocument )
+    public List<String> indexListDocuments( Portlet portlet, List<Integer> listIdDocument ) throws Exception
     {
         List<String> lstErrors = new ArrayList<String>(  );
         
@@ -181,13 +183,9 @@ public class SolrDocIndexer implements SolrIndexer
         	 Document document = DocumentHome.findByPrimaryKey( d );
                 try
                 {
-                    //The Lucene document of plugin-document
-                        
-                    
-                    if( document != null && !listIdDocument.contains( document.getId( ) ) ){
 	                    // Generates the item to index
-                    	if(document.getPublishedStatus() == 0){
-		                    SolrItem item = getItem( null, document );
+                    	if(document != null && document.getPublishedStatus() == 0){
+		                    SolrItem item = getItem( portlet, document );
 		
 		                    if ( item != null )
 		                    {
@@ -195,12 +193,12 @@ public class SolrDocIndexer implements SolrIndexer
 		                    }
 		                    
                     	}     
-                    }
                 }
                 catch ( Exception e )
                 {
                     lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
                     AppLogService.error( DOC_INDEXATION_ERROR + document.getId(  ), e );
+                    throw new Exception();
                 }
             }
         
