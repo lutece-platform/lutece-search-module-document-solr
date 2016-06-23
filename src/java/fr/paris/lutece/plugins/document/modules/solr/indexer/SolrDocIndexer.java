@@ -166,6 +166,49 @@ public class SolrDocIndexer implements SolrIndexer
     }
 
     /**
+     * iNDEX LIST oF DICUMENT PUBLISHED
+     * @param listIdDocument
+     * @return error LIST
+     */
+    public List<String> indexListDocuments(  List<Integer> listIdDocument )
+    {
+        List<String> lstErrors = new ArrayList<String>(  );
+        
+        
+         for ( Integer d : listIdDocument )
+            {
+        	 
+        	 Document document = DocumentHome.findByPrimaryKey( d );
+                try
+                {
+                    //The Lucene document of plugin-document
+                        
+                    
+                    if( document != null && !listIdDocument.contains( document.getId( ) ) ){
+	                    // Generates the item to index
+                    	if(document.getPublishedStatus() == 0){
+		                    SolrItem item = getItem( null, document );
+		
+		                    if ( item != null )
+		                    {
+		                        SolrIndexerService.write( item );
+		                    }
+		                    
+                    	}     
+                    }
+                }
+                catch ( Exception e )
+                {
+                    lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
+                    AppLogService.error( DOC_INDEXATION_ERROR + document.getId(  ), e );
+                }
+            }
+        
+
+        return lstErrors;
+    }
+
+    /**
      * Get item
      * @param portlet The portlet
      * @param document The document
