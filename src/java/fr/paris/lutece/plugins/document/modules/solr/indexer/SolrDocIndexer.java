@@ -175,7 +175,7 @@ public class SolrDocIndexer implements SolrIndexer
     public List<String> indexListDocuments( Portlet portlet, List<Integer> listIdDocument ) throws Exception
     {
         List<String> lstErrors = new ArrayList<String>(  );
-        
+        StringBuffer sbLogs = new StringBuffer();
         
          for ( Integer d : listIdDocument )
             {
@@ -189,7 +189,7 @@ public class SolrDocIndexer implements SolrIndexer
 		
 		                    if ( item != null )
 		                    {
-		                        SolrIndexerService.write( item );
+		                        SolrIndexerService.write( item, sbLogs );
 		                    }
 		                    
                     	}     
