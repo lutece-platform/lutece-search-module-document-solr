@@ -141,6 +141,8 @@ public class SolrDocIndexer implements SolrIndexer
         
         for ( Portlet portlet : portletList )
         {
+            Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
+
             for ( Document d : PublishingService.getInstance(  ).getPublishedDocumentsByPortletId( portlet.getId(  ) ) )
             {
                 try
@@ -154,7 +156,7 @@ public class SolrDocIndexer implements SolrIndexer
 	
 	                    if ( item != null )
 	                    {
-	                        SolrIndexerService.write( item );
+	                        solrItems.add(getItem( portlet, document ));
 	                    }
 	                    listDocument.add( document.getId( ) );
                     }
@@ -165,6 +167,16 @@ public class SolrDocIndexer implements SolrIndexer
                     AppLogService.error( DOC_INDEXATION_ERROR + d.getId(  ), e );
                    
                 }
+            }
+
+            try
+            {
+                SolrIndexerService.write(solrItems);
+            }
+            catch ( Exception e )
+            {
+                lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
+                AppLogService.error( DOC_INDEXATION_ERROR, e );
             }
         }
 
@@ -182,31 +194,34 @@ public class SolrDocIndexer implements SolrIndexer
         List<String> lstErrors = new ArrayList<String>(  );
         StringBuffer sbLogs = new StringBuffer();
         
-         for ( Integer d : listIdDocument )
-            {
-        	 
-        	 Document document = DocumentHome.findByPrimaryKey( d );
-                try
-                {
-	                    // Generates the item to index
-                    	if(document != null && document.getPublishedStatus() == 0){
-		                    SolrItem item = getItem( portlet, document );
-		
-		                    if ( item != null )
-		                    {
-		                        SolrIndexerService.write( item, sbLogs );
-		                    }
-		                    
-                    	}     
-                }
-                catch ( Exception e )
-                {
-                    lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
-                    AppLogService.error( DOC_INDEXATION_ERROR + document.getId(  ), e );
-                    throw new Exception();
-                }
-            }
+        Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
         
+        for ( Integer d : listIdDocument )
+        {
+        	
+        	Document document = DocumentHome.findByPrimaryKey( d );
+            // Generates the item to index
+        	if(document != null && document.getPublishedStatus() == 0){
+                SolrItem item = getItem( portlet, document );
+        		
+                if ( item != null )
+                {
+                    solrItems.add(getItem( portlet, document ));
+                }
+        		
+           	}     		
+        }
+        
+        try 
+        {
+        	SolrIndexerService.write(solrItems);
+        }
+        catch ( Exception e )
+        {
+            lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
+            AppLogService.error( DOC_INDEXATION_ERROR, e );
+            throw new Exception();		
+        }
 
         return lstErrors;
     }
