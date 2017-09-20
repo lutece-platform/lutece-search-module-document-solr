@@ -74,8 +74,12 @@ import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.Iterator;
 import java.util.List;
@@ -104,7 +108,8 @@ public class SolrDocIndexer implements SolrIndexer
 
     private static final String PARAMETER_TYPE_NUMERICTEXT = "numerictext";
     private static final String PARAMETER_TYPE_GEOLOC = "geoloc";
-
+    private static final String PARAMETER_TYPE_DATE = "date";
+    
     private static final Integer PARAMETER_DOCUMENT_MAX_CHARS = Integer.parseInt(AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS ));
     
     /**
@@ -136,6 +141,8 @@ public class SolrDocIndexer implements SolrIndexer
         
         for ( Portlet portlet : portletList )
         {
+            Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
+
             for ( Document d : PublishingService.getInstance(  ).getPublishedDocumentsByPortletId( portlet.getId(  ) ) )
             {
                 try
@@ -149,7 +156,7 @@ public class SolrDocIndexer implements SolrIndexer
 	
 	                    if ( item != null )
 	                    {
-	                        SolrIndexerService.write( item );
+	                        solrItems.add(getItem( portlet, document ));
 	                    }
 	                    listDocument.add( document.getId( ) );
                     }
@@ -160,6 +167,16 @@ public class SolrDocIndexer implements SolrIndexer
                     AppLogService.error( DOC_INDEXATION_ERROR + d.getId(  ), e );
                    
                 }
+            }
+
+            try
+            {
+                SolrIndexerService.write(solrItems);
+            }
+            catch ( Exception e )
+            {
+                lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
+                AppLogService.error( DOC_INDEXATION_ERROR, e );
             }
         }
 
@@ -178,7 +195,6 @@ public class SolrDocIndexer implements SolrIndexer
         StringBuffer sbLogs = new StringBuffer();
         
         Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
-        
         for ( Integer d : listIdDocument )
         {
         	Document document = DocumentHome.findByPrimaryKey( d );
@@ -196,12 +212,14 @@ public class SolrDocIndexer implements SolrIndexer
         try 
         {
         	SolrIndexerService.write(solrItems, sbLogs);
+
         }
         catch ( Exception e )
         {
             lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
             lstErrors.add( sbLogs.toString() );
             AppLogService.error( DOC_INDEXATION_ERROR, e );
+
         }
 
         return lstErrors;
@@ -339,6 +357,17 @@ public class SolrDocIndexer implements SolrIndexer
                     {
                         item.addDynamicFieldGeoloc( attribute.getCode(  ), attribute.getTextValue(  ),
                             document.getCodeDocumentType(  ) );
+                    }
+                    else if ( PARAMETER_TYPE_DATE.equalsIgnoreCase( attribute.getCodeAttributeType(  ) ) && !"".equals(attribute.getTextValue()) )
+                    {
+                    	// Todo : how to ensure using the right date format ?
+                    	DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+                    	try {
+	                    	Date date = format.parse(attribute.getTextValue());
+	                        item.addDynamicField( attribute.getCode(  ), date );
+                    	} catch (ParseException e) {
+                            AppLogService.error( e.getMessage(  ), e );
+                    	}
                     }
                     else	
                     	item.addDynamicField( attribute.getCode(  ), attribute.getTextValue(  ) );
