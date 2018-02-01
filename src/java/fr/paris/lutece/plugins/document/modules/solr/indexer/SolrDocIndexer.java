@@ -109,6 +109,9 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PARAMETER_TYPE_NUMERICTEXT = "numerictext";
     private static final String PARAMETER_TYPE_GEOLOC = "geoloc";
     private static final String PARAMETER_TYPE_DATE = "date";
+
+    private static final String PROPERTY_WRITER_MAX_FIELD_LENGTH = "search.lucene.writer.maxFieldLength"; // from the core
+    private static final int DEFAULT_WRITER_MAX_FIELD_LENGTH = 1000000;
     
     /**
      * Creates a new SolrPageIndexer
@@ -274,17 +277,17 @@ public class SolrDocIndexer implements SolrIndexer
 
         // The content
         String strContentToIndex = getContentToIndex( document, item );
-        ContentHandler handler = null;
         String strMaxChars = AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS );
+        int nMaxChars;
         if ( StringUtils.isNotBlank( strMaxChars ) )
         {
-            int nMaxChars = Integer.parseInt( strMaxChars );
-            handler = new BodyContentHandler( nMaxChars );
+            nMaxChars = Integer.parseInt( strMaxChars );
         }
         else
         {
-        	handler = new BodyContentHandler( );
+            nMaxChars = AppPropertiesService.getPropertyInt( PROPERTY_WRITER_MAX_FIELD_LENGTH, DEFAULT_WRITER_MAX_FIELD_LENGTH );
         }
+        ContentHandler handler = new BodyContentHandler( nMaxChars );
         	
         Metadata metadata = new Metadata(  );
 
