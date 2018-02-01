@@ -110,8 +110,6 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PARAMETER_TYPE_GEOLOC = "geoloc";
     private static final String PARAMETER_TYPE_DATE = "date";
     
-    private static final Integer PARAMETER_DOCUMENT_MAX_CHARS = Integer.parseInt(AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS ));
-    
     /**
      * Creates a new SolrPageIndexer
      */
@@ -277,9 +275,11 @@ public class SolrDocIndexer implements SolrIndexer
         // The content
         String strContentToIndex = getContentToIndex( document, item );
         ContentHandler handler = null;
-        if ( PARAMETER_DOCUMENT_MAX_CHARS != null )
+        String strMaxChars = AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS );
+        if ( StringUtils.isNotBlank( strMaxChars ) )
         {
-        	handler = new BodyContentHandler( PARAMETER_DOCUMENT_MAX_CHARS );
+            int nMaxChars = Integer.parseInt( strMaxChars );
+            handler = new BodyContentHandler( nMaxChars );
         }
         else
         {
