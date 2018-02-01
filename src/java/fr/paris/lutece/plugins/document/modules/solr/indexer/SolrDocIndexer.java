@@ -164,7 +164,7 @@ public class SolrDocIndexer implements SolrIndexer
                 }
                 catch ( Exception e )
                 {
-                    lstErrors.add( SolrIndexerService.buildErrorMessage( e ) );
+                    lstErrors.add( DOC_INDEXATION_ERROR + d.getId(  ) + " : " + SolrIndexerService.buildErrorMessage( e ) );
                     AppLogService.error( DOC_INDEXATION_ERROR + d.getId(  ), e );
                    
                 }
@@ -234,7 +234,7 @@ public class SolrDocIndexer implements SolrIndexer
      * @throws IOException
      */
     private SolrItem getItem( Portlet portlet, Document document )
-        throws IOException
+        throws Exception
     {
         // the item
         SolrItem item = new SolrItem(  );
@@ -291,20 +291,8 @@ public class SolrDocIndexer implements SolrIndexer
         	
         Metadata metadata = new Metadata(  );
 
-        try
-        {
-            new HtmlParser(  ).parse( new ByteArrayInputStream( strContentToIndex.getBytes(  ) ), handler, metadata,
-                new ParseContext(  ) );
-        }
-        catch ( SAXException e )
-        {
-            throw new AppException( "Error during document parsing." );
-        }
-        catch ( TikaException e )
-        {
-            throw new AppException( "Error during document parsing." );
-        }
-
+        new HtmlParser(  ).parse( new ByteArrayInputStream( strContentToIndex.getBytes(  ) ), handler, metadata,
+            new ParseContext(  ) );
         item.setContent( handler.toString(  ) );
 
         return item;
@@ -336,7 +324,7 @@ public class SolrDocIndexer implements SolrIndexer
                         try {
                             geolocItem = GeolocItem.fromJSON( attribute.getTextValue(  ) );
                         } catch ( IOException e ) {
-                            AppLogService.error( "SolrDocumentIndexer, error parsing JSON" + e );
+                            AppLogService.error( "SolrDocumentIndexer, error parsing JSON " + e.getMessage( ), e );
                         }
                         if (geolocItem != null && geolocItem.getAddress(  ) != null) {
                             sbContentToIndex.append( geolocItem.getAddress(  ) );
