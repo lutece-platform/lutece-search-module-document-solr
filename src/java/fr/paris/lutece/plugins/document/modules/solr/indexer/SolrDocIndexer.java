@@ -40,7 +40,6 @@ import fr.paris.lutece.plugins.document.business.attributes.DocumentAttribute;
 import fr.paris.lutece.plugins.document.business.attributes.DocumentAttributeHome;
 import fr.paris.lutece.plugins.document.business.category.Category;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
-import fr.paris.lutece.plugins.document.business.portlet.DocumentPortletHome;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
 import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
 import fr.paris.lutece.plugins.leaflet.business.GeolocItem;
@@ -137,10 +136,7 @@ public class SolrDocIndexer implements SolrIndexer
         List<Integer> listDocument = new ArrayList<Integer>();
 
         //Page page;
-        List<Portlet> portletList= PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) );
-        portletList.addAll(PortletHome.findByType( DocumentPortletHome.getInstance(  ).getPortletTypeId(  ) ));
-        
-        for ( Portlet portlet : portletList )
+        for ( Portlet portlet : PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) ) )
         {
             Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
 
