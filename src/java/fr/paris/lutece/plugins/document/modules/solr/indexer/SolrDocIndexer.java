@@ -40,6 +40,7 @@ import fr.paris.lutece.plugins.document.business.attributes.DocumentAttribute;
 import fr.paris.lutece.plugins.document.business.attributes.DocumentAttributeHome;
 import fr.paris.lutece.plugins.document.business.category.Category;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
+import fr.paris.lutece.plugins.document.business.portlet.DocumentPortletHome;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
 import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
 import fr.paris.lutece.plugins.leaflet.business.GeolocItem;
@@ -54,12 +55,10 @@ import fr.paris.lutece.portal.business.page.Page;
 import fr.paris.lutece.portal.business.page.PageHome;
 import fr.paris.lutece.portal.business.portlet.Portlet;
 import fr.paris.lutece.portal.business.portlet.PortletHome;
-import fr.paris.lutece.portal.service.plugin.PluginService;
 import fr.paris.lutece.portal.service.spring.SpringContextService;
 import fr.paris.lutece.portal.service.util.AppException;
 import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
-import fr.paris.lutece.portal.web.admin.PluginAdminPageJspBean;
 import fr.paris.lutece.util.url.UrlItem;
 
 import org.apache.commons.lang.StringUtils;
@@ -99,6 +98,7 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PROPERTY_NAME = "document-solr.indexer.name";
     private static final String PROPERTY_DESCRIPTION = "document-solr.indexer.description";
     private static final String PROPERTY_VERSION = "document-solr.indexer.version";
+    private static final String PROPERTY_DOCUMENT_PORTLET_ENABLE = "document-solr.indexer.documentPortlet.enable";
     private static final String PARAMETER_DOCUMENT_ID = "document_id";
     private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
     private static final List<String> LIST_RESSOURCES_NAME = new ArrayList<String>(  );
@@ -127,6 +127,15 @@ public class SolrDocIndexer implements SolrIndexer
     }
 
     /**
+     * Return true if document portlet is enable for indexing 
+     * @return true if enable otherwise false
+     */
+    public boolean isDocumentPortletEnable(  )
+    {
+        return Boolean.TRUE.equals( AppPropertiesService.getPropertyBoolean( PROPERTY_DOCUMENT_PORTLET_ENABLE, Boolean.FALSE ) );
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -136,7 +145,15 @@ public class SolrDocIndexer implements SolrIndexer
         List<Integer> listDocument = new ArrayList<Integer>();
 
         //Page page;
-        for ( Portlet portlet : PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) ) )
+        List<Portlet> portletList= PortletHome.findByType( DocumentListPortletHome.getInstance(  ).getPortletTypeId(  ) );
+        
+        // Index document published on DocumentPortlets
+        if ( isDocumentPortletEnable() )
+        {
+             portletList.addAll(PortletHome.findByType( DocumentPortletHome.getInstance(  ).getPortletTypeId(  ) ));
+        }
+        
+        for ( Portlet portlet : portletList  )
         {
             Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
 
