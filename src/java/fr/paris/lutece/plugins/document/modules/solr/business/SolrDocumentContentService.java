@@ -66,6 +66,7 @@ import fr.paris.lutece.portal.service.util.AppPathService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
 import fr.paris.lutece.portal.web.constants.Parameters;
 import fr.paris.lutece.util.ReferenceList;
+import fr.paris.lutece.util.UniqueIDGenerator;
 import fr.paris.lutece.util.date.DateUtil;
 import fr.paris.lutece.util.html.HtmlTemplate;
 
@@ -139,7 +140,10 @@ public class SolrDocumentContentService extends ContentService
     //Properties
     private static final String PROPERTY_DEFAULT_PORTLET_DOCUMENT_LIST_XSL = "document.contentService.defaultPortletDocumentListXSL";
     private static final String PROPERTY_CACHE_ENABLED = "document.cache.enabled";
+    private static final String XSLSOURCE_STYLE_PREFIX_ID = UniqueIDGenerator.getNewId( );
     private static final String TARGET_TOP = "target=_top";
+    
+    private XmlTransformerService _xmlTransformerService ;
     private boolean _bInit;
 
     /**
@@ -198,6 +202,8 @@ public class SolrDocumentContentService extends ContentService
         {
             initCache( getName(  ) );
         }
+        
+        _xmlTransformerService = new XmlTransformerService( );
 
         _bInit = true;
     }
@@ -329,8 +335,8 @@ public class SolrDocumentContentService extends ContentService
                 xmlContent = document.getXmlValidatedContent(  );
             }
 
-            String strDocument = XmlTransformerService.transformBySource( xmlContent,
-                    type.getContentServiceXslSource(  ), null, null );
+            String strDocument = _xmlTransformerService.transformBySourceWithXslCache( xmlContent,
+                    type.getContentServiceXslSource(  ), XSLSOURCE_STYLE_PREFIX_ID + type.getCode( ), null, null );
 
             model.put( MARK_DOCUMENT, strDocument );
             model.put( MARK_PORTLET, getPortlet( request, strPortletId, nMode ) );
@@ -407,7 +413,7 @@ public class SolrDocumentContentService extends ContentService
      * @param request The Http request
      * @return The HTML code of the documents list portlet as a String
      */
-    private static synchronized String getPortlet( HttpServletRequest request, String strPortletId, int nMode )
+    private synchronized String getPortlet( HttpServletRequest request, String strPortletId, int nMode )
         throws SiteMessageException
     {
         try
@@ -440,9 +446,9 @@ public class SolrDocumentContentService extends ContentService
             FileInputStream fis = AppPathService.getResourceAsStream( strFilePath, strFileName );
             Source xslSource = new StreamSource( fis );
 
-            // Get request paramaters and store them in a hashtable
+            // Get request paramaters and store them in a map
             Enumeration enumParam = request.getParameterNames(  );
-            Hashtable<String, String> htParamRequest = new Hashtable<String, String>(  );
+            HashMap<String, String> htParamRequest = new HashMap<>(  );
             String paramName = "";
 
             while ( enumParam.hasMoreElements(  ) )
@@ -464,7 +470,7 @@ public class SolrDocumentContentService extends ContentService
                 htParamRequest.put( MARKER_TARGET, TARGET_TOP );
             }
 
-            return XmlTransformerService.transformBySource( strXml, xslSource, htParamRequest, outputProperties );
+            return _xmlTransformerService.transformBySourceWithXslCache( strXml, xslSource, XSLSOURCE_STYLE_PREFIX_ID + strPortletId + "-" + nMode, htParamRequest, outputProperties );
         }
         catch ( NumberFormatException e )
         {
