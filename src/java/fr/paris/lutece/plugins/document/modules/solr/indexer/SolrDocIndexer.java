@@ -205,10 +205,10 @@ public class SolrDocIndexer implements SolrIndexer
      */
     public List<String> indexListDocuments( Portlet portlet, List<Integer> listIdDocument ) throws Exception
     {
-        List<String> lstErrors = new ArrayList<String>(  );
-        StringBuffer sbLogs = new StringBuffer();
+        List<String> lstErrors = new ArrayList< >(  );
+        StringBuilder sbLogs = new StringBuilder();
         
-        Collection<SolrItem> solrItems = new ArrayList<SolrItem>();
+        Collection<SolrItem> solrItems = new ArrayList< >();
         for ( Integer d : listIdDocument )
         {
         	Document document = DocumentHome.findByPrimaryKey( d );
