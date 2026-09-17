@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2021, City of Paris
+ * Copyright (c) 2002-2026, City of Paris
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,32 +44,30 @@ import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome
 import fr.paris.lutece.plugins.document.business.portlet.DocumentPortletHome;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
 import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
+import fr.paris.lutece.plugins.document.utils.IntegerUtils;
 import fr.paris.lutece.plugins.leaflet.business.GeolocItem;
-import fr.paris.lutece.plugins.lucene.service.indexer.IFileIndexer;
-import fr.paris.lutece.plugins.lucene.service.indexer.IFileIndexerFactory;
 import fr.paris.lutece.plugins.search.solr.business.field.Field;
 import fr.paris.lutece.plugins.search.solr.indexer.SolrIndexer;
 import fr.paris.lutece.plugins.search.solr.indexer.SolrIndexerService;
 import fr.paris.lutece.plugins.search.solr.indexer.SolrItem;
 import fr.paris.lutece.plugins.search.solr.util.SolrConstants;
+import fr.paris.lutece.plugins.search.solr.util.SolrHtmlParserUtil;
 import fr.paris.lutece.portal.business.page.Page;
 import fr.paris.lutece.portal.business.page.PageHome;
 import fr.paris.lutece.portal.business.portlet.Portlet;
 import fr.paris.lutece.portal.business.portlet.PortletHome;
-import fr.paris.lutece.portal.service.spring.SpringContextService;
-import fr.paris.lutece.portal.service.util.AppException;
+import fr.paris.lutece.portal.service.parser.Parser;
+import fr.paris.lutece.portal.service.parser.ParserException;
 import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
 import fr.paris.lutece.util.url.UrlItem;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.tika.exception.TikaException;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.parser.ParseContext;
-import org.apache.tika.parser.html.HtmlParser;
-import org.apache.tika.sax.BodyContentHandler;
-import org.xml.sax.ContentHandler;
-import org.xml.sax.SAXException;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -78,6 +76,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.Iterator;
@@ -87,6 +86,8 @@ import java.util.List;
  * The indexer service for Solr.
  *
  */
+@ApplicationScoped
+@Named( SolrDocIndexer.BEAN_NAME )
 public class SolrDocIndexer implements SolrIndexer
 {
     public static final String BEAN_NAME = "document-solr.solrDocIndexer";
@@ -101,9 +102,11 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PROPERTY_DOCUMENT_PORTLET_ENABLE = "document-solr.indexer.documentPortlet.enable";
     private static final String PARAMETER_DOCUMENT_ID = "document_id";
     private static final String PARAMETER_ATTRIBUTE_ID = "id_attribute";
-    private static final List<String> LIST_RESSOURCES_NAME = new ArrayList<String>( );
+    private static final List<String> LIST_RESSOURCES_NAME = List.of( DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE );
     private static final String SHORT_NAME = "doc";
     private static final String DOC_INDEXATION_ERROR = "[SolrDocIndexer] An error occured during the indexation of the document number ";
+    private static final String NO_PARSER_MESSAGE = "[SolrDocIndexer] No parser deployed : binary document attributes are indexed by their url. Install plugin-parser to index their content.";
+    private static final String AMBIGUOUS_PARSER_MESSAGE = "[SolrDocIndexer] Several Parser implementations are deployed and none takes precedence : binary document attributes are indexed by their url. Give one implementation a higher @LutecePriority.";
 
     private static final String PARAMETER_TYPE_NUMERICTEXT = "numerictext";
     private static final String PARAMETER_TYPE_GEOLOC = "geoloc";
@@ -112,13 +115,19 @@ public class SolrDocIndexer implements SolrIndexer
     private static final String PROPERTY_WRITER_MAX_FIELD_LENGTH = "search.lucene.writer.maxFieldLength"; // from the core
     private static final int DEFAULT_WRITER_MAX_FIELD_LENGTH = 1000000;
 
-    /**
-     * Creates a new SolrPageIndexer
-     */
-    public SolrDocIndexer( )
-    {
-        LIST_RESSOURCES_NAME.add( DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE );
-    }
+    @Inject
+    private PublishingService _publishingService;
+
+    @Inject
+    private DocumentListPortletHome _documentListPortletHome;
+
+    @Inject
+    private DocumentPortletHome _documentPortletHome;
+
+    @Inject
+    private Instance<Parser> _parsers;
+
+    private boolean _bNoParserLogged;
 
     @Override
     public boolean isEnable( )
@@ -146,19 +155,19 @@ public class SolrDocIndexer implements SolrIndexer
         List<Integer> listDocument = new ArrayList<Integer>( );
 
         // Page page;
-        List<Portlet> portletList = PortletHome.findByType( DocumentListPortletHome.getInstance( ).getPortletTypeId( ) );
+        List<Portlet> portletList = PortletHome.findByType( _documentListPortletHome.getPortletTypeId( ) );
 
         // Index document published on DocumentPortlets
         if ( isDocumentPortletEnable( ) )
         {
-            portletList.addAll( PortletHome.findByType( DocumentPortletHome.getInstance( ).getPortletTypeId( ) ) );
+            portletList.addAll( PortletHome.findByType( _documentPortletHome.getPortletTypeId( ) ) );
         }
 
         for ( Portlet portlet : portletList )
         {
             Collection<SolrItem> solrItems = new ArrayList<SolrItem>( );
 
-            for ( Document d : PublishingService.getInstance( ).getPublishedDocumentsByPortletId( portlet.getId( ) ) )
+            for ( Document d : _publishingService.getPublishedDocumentsByPortletId( portlet.getId( ) ) )
             {
                 try
                 {
@@ -168,19 +177,14 @@ public class SolrDocIndexer implements SolrIndexer
                     if ( document != null && !listDocument.contains( document.getId( ) ) )
                     {
                         // Generates the item to index
-                        SolrItem item = getItem( portlet, document );
-
-                        if ( item != null )
-                        {
-                            solrItems.add( getItem( portlet, document ) );
-                        }
+                        solrItems.add( getItem( portlet, document ) );
                         listDocument.add( document.getId( ) );
                     }
                 }
                 catch( Exception e )
                 {
                     lstErrors.add( DOC_INDEXATION_ERROR + d.getId( ) + " : " + SolrIndexerService.buildErrorMessage( e ) );
-                    AppLogService.error( DOC_INDEXATION_ERROR + d.getId( ), e );
+                    AppLogService.error( "{}{}", DOC_INDEXATION_ERROR, d.getId( ), e );
 
                 }
             }
@@ -217,12 +221,7 @@ public class SolrDocIndexer implements SolrIndexer
             Document document = DocumentHome.findByPrimaryKey( d );
             if ( document != null )
             {
-                SolrItem item = getItem( portlet, document );
-
-                if ( item != null )
-                {
-                    solrItems.add( getItem( portlet, document ) );
-                }
+                solrItems.add( getItem( portlet, document ) );
             }
         }
 
@@ -294,24 +293,66 @@ public class SolrDocIndexer implements SolrIndexer
 
         // The content
         String strContentToIndex = getContentToIndex( document, item );
-        String strMaxChars = AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS );
-        int nMaxChars;
-        if ( StringUtils.isNotBlank( strMaxChars ) )
-        {
-            nMaxChars = Integer.parseInt( strMaxChars );
-        }
-        else
-        {
-            nMaxChars = AppPropertiesService.getPropertyInt( PROPERTY_WRITER_MAX_FIELD_LENGTH, DEFAULT_WRITER_MAX_FIELD_LENGTH );
-        }
-        ContentHandler handler = new BodyContentHandler( nMaxChars );
-
-        Metadata metadata = new Metadata( );
-
-        new HtmlParser( ).parse( new ByteArrayInputStream( strContentToIndex.getBytes( ) ), handler, metadata, new ParseContext( ) );
-        item.setContent( handler.toString( ) );
+        item.setContent( truncate( SolrHtmlParserUtil.parseHtml( strContentToIndex ), getMaxChars( ) ) );
 
         return item;
+    }
+
+    /**
+     * Returns the maximum number of characters indexed for a document content.
+     *
+     * @return the limit, or a negative value when the content is not limited
+     */
+    private static int getMaxChars( )
+    {
+        String strMaxChars = AppPropertiesService.getProperty( PROPERTY_DOCUMENT_MAX_CHARS );
+
+        if ( StringUtils.isNotBlank( strMaxChars ) )
+        {
+            return Integer.parseInt( strMaxChars );
+        }
+
+        return AppPropertiesService.getPropertyInt( PROPERTY_WRITER_MAX_FIELD_LENGTH, DEFAULT_WRITER_MAX_FIELD_LENGTH );
+    }
+
+    /**
+     * Truncates a content to a maximum number of characters.
+     *
+     * @param strContent
+     *            the content
+     * @param nMaxChars
+     *            the maximum number of characters, ignored when not strictly positive
+     * @return the truncated content
+     */
+    private static String truncate( String strContent, int nMaxChars )
+    {
+        if ( ( strContent == null ) || ( nMaxChars <= 0 ) || ( strContent.length( ) <= nMaxChars ) )
+        {
+            return strContent;
+        }
+
+        return strContent.substring( 0, nMaxChars );
+    }
+
+    /**
+     * Returns the parser used to extract the text of a binary document attribute.
+     *
+     * @return the parser, or null when no implementation is deployed
+     */
+    private Parser getParser( )
+    {
+        if ( _parsers.isResolvable( ) )
+        {
+            return _parsers.get( );
+        }
+
+        if ( !_bNoParserLogged )
+        {
+            AppLogService.info( _parsers.isUnsatisfied( ) ? NO_PARSER_MESSAGE : AMBIGUOUS_PARSER_MESSAGE );
+            _bNoParserLogged = true;
+        }
+
+        return null;
     }
 
     /**
@@ -323,11 +364,13 @@ public class SolrDocIndexer implements SolrIndexer
      *            The SolR item
      * @return The content
      */
-    private static String getContentToIndex( Document document, SolrItem item )
+    private String getContentToIndex( Document document, SolrItem item )
     {
         StringBuilder sbContentToIndex = new StringBuilder( );
         sbContentToIndex.append( document.getTitle( ) );
         sbContentToIndex.append( " " );
+
+        Parser parser = getParser( );
 
         for ( DocumentAttribute attribute : document.getAttributes( ) )
         {
@@ -346,7 +389,7 @@ public class SolrDocIndexer implements SolrIndexer
                         }
                         catch( IOException e )
                         {
-                            AppLogService.error( "SolrDocumentIndexer, error parsing JSON " + e.getMessage( ), e );
+                            AppLogService.error( "SolrDocumentIndexer, error parsing JSON {}", e.getMessage( ), e );
                         }
                         if ( geolocItem != null && geolocItem.getAddress( ) != null )
                         {
@@ -395,25 +438,24 @@ public class SolrDocIndexer implements SolrIndexer
                 else
                 {
                     // Binary file attribute
-                    // Gets indexer depending on the ContentType (ie: "application/pdf" should use a PDF indexer)
-                    IFileIndexerFactory _factoryIndexer = (IFileIndexerFactory) SpringContextService.getBean( IFileIndexerFactory.BEAN_FILE_INDEXER_FACTORY );
-                    IFileIndexer indexer = _factoryIndexer.getIndexer( attribute.getValueContentType( ) );
+                    // The deployed parser handles the ContentType (ie: plugin-parser indexes "application/pdf")
+                    boolean bIndexed = false;
 
-                    if ( indexer != null )
+                    if ( parser != null )
                     {
-                        try
+                        try ( ByteArrayInputStream bais = new ByteArrayInputStream( attribute.getBinaryValue( ) ) )
                         {
-                            ByteArrayInputStream bais = new ByteArrayInputStream( attribute.getBinaryValue( ) );
-                            sbContentToIndex.append( indexer.getContentToIndex( bais ) );
+                            sbContentToIndex.append( parser.parseToString( bais ) );
                             sbContentToIndex.append( " " );
-                            bais.close( );
+                            bIndexed = true;
                         }
-                        catch( IOException e )
+                        catch( ParserException | IOException e )
                         {
                             AppLogService.error( e.getMessage( ), e );
                         }
                     }
-                    else
+
+                    if ( !bIndexed )
                     {
                         AppLogService.debug( "No indexer found. Url to this data will be given instead" );
 
@@ -539,26 +581,10 @@ public class SolrDocIndexer implements SolrIndexer
         item.setUid( getResourceUid( strIdDocument, DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE ) );
 
         String strContentToIndex = getContentToIndex( document, item );
-        ContentHandler handler = new BodyContentHandler( );
-        Metadata metadata = new Metadata( );
-
-        try
-        {
-            new org.apache.tika.parser.html.HtmlParser( ).parse( new ByteArrayInputStream( strContentToIndex.getBytes( ) ), handler, metadata,
-                    new ParseContext( ) );
-        }
-        catch( SAXException e )
-        {
-            throw new AppException( "Error during document parsing." );
-        }
-        catch( TikaException e )
-        {
-            throw new AppException( "Error during document parsing." );
-        }
 
         // Add the tag-stripped contents as a Reader-valued Text field so it will
         // get tokenized and indexed.
-        item.setContent( handler.toString( ) );
+        item.setContent( truncate( SolrHtmlParserUtil.parseHtml( strContentToIndex ), getMaxChars( ) ) );
 
         // Add the title as a separate Text field, so that it can be searched
         // separately.
@@ -580,23 +606,53 @@ public class SolrDocIndexer implements SolrIndexer
     @Override
     public List<SolrItem> getDocuments( String strIdDocument )
     {
-        List<SolrItem> lstItems = new ArrayList<SolrItem>( );
+        if ( !IntegerUtils.isNumeric( strIdDocument ) )
+        {
+            AppLogService.error( "[SolrDocIndexer] Not a document identifier : {}", strIdDocument );
 
-        int nIdDocument = Integer.parseInt( strIdDocument );
+            return Collections.emptyList( );
+        }
+
+        int nIdDocument = IntegerUtils.convert( strIdDocument );
         Document document = DocumentHome.findByPrimaryKey( nIdDocument );
-        Iterator<Portlet> it = PublishingService.getInstance( ).getPortletsByDocumentId( Integer.toString( nIdDocument ) ).iterator( );
+
+        if ( document == null )
+        {
+            AppLogService.debug( "[SolrDocIndexer] Unknown document, nothing to index : {}", nIdDocument );
+
+            return Collections.emptyList( );
+        }
+
+        List<SolrItem> lstItems = new ArrayList<SolrItem>( );
+        Iterator<Portlet> it = _publishingService.getPortletsByDocumentId( Integer.toString( nIdDocument ) ).iterator( );
 
         try
         {
             while ( it.hasNext( ) )
             {
                 Portlet portlet = it.next( );
+
+                if ( portlet == null )
+                {
+                    AppLogService.debug( "[SolrDocIndexer] A publication of the document {} refers to a portlet that could not be loaded, skipped",
+                            nIdDocument );
+
+                    continue;
+                }
+
                 UrlItem url = new UrlItem( SolrIndexerService.getBaseUrl( ) );
                 url.addParameter( PARAMETER_DOCUMENT_ID, nIdDocument );
                 url.addParameter( PARAMETER_PORTLET_ID, portlet.getId( ) );
 
                 String strPortletDocumentId = nIdDocument + "&" + portlet.getId( );
                 Page page = PageHome.getPage( portlet.getPageId( ) );
+
+                if ( page == null )
+                {
+                    AppLogService.debug( "[SolrDocIndexer] The portlet {} refers to the unknown page {}, skipped", portlet.getId( ), portlet.getPageId( ) );
+
+                    continue;
+                }
 
                 lstItems.add( getDocument( document, url.getUrl( ), page.getRole( ), strPortletDocumentId ) );
             }
