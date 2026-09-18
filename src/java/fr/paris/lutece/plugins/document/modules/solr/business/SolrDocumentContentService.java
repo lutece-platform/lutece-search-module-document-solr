@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2021, City of Paris
+ * Copyright (c) 2002-2026, City of Paris
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,12 +37,13 @@ import fr.paris.lutece.plugins.document.business.Document;
 import fr.paris.lutece.plugins.document.business.DocumentHome;
 import fr.paris.lutece.plugins.document.business.DocumentType;
 import fr.paris.lutece.plugins.document.business.DocumentTypeHome;
-import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortlet;
 import fr.paris.lutece.plugins.document.business.portlet.DocumentListPortletHome;
 import fr.paris.lutece.plugins.document.business.publication.DocumentPublication;
 import fr.paris.lutece.plugins.document.modules.solr.indexer.SolrDocIndexer;
 import fr.paris.lutece.plugins.document.service.publishing.PublishingService;
 import fr.paris.lutece.plugins.document.utils.DocumentIndexerUtils;
+import fr.paris.lutece.plugins.document.utils.IntegerUtils;
+import fr.paris.lutece.plugins.resource.loader.ResourceNotFoundException;
 import fr.paris.lutece.plugins.search.solr.business.SolrSearchEngine;
 import fr.paris.lutece.plugins.search.solr.util.SolrConstants;
 import fr.paris.lutece.portal.business.page.Page;
@@ -52,6 +53,8 @@ import fr.paris.lutece.portal.business.portlet.AliasPortletHome;
 import fr.paris.lutece.portal.business.portlet.Portlet;
 import fr.paris.lutece.portal.business.portlet.PortletHome;
 import fr.paris.lutece.portal.business.style.ModeHome;
+import fr.paris.lutece.portal.service.cache.Lutece107Cache;
+import fr.paris.lutece.portal.service.cache.LuteceCacheManager;
 import fr.paris.lutece.portal.service.content.ContentService;
 import fr.paris.lutece.portal.service.content.PageData;
 import fr.paris.lutece.portal.service.html.XmlTransformerService;
@@ -60,8 +63,8 @@ import fr.paris.lutece.portal.service.portal.PortalService;
 import fr.paris.lutece.portal.service.security.LuteceUser;
 import fr.paris.lutece.portal.service.security.SecurityService;
 import fr.paris.lutece.portal.service.security.UserNotSignedException;
-import fr.paris.lutece.portal.service.spring.SpringContextService;
 import fr.paris.lutece.portal.service.template.AppTemplateService;
+import fr.paris.lutece.portal.service.util.AppLogService;
 import fr.paris.lutece.portal.service.util.AppPathService;
 import fr.paris.lutece.portal.service.util.AppPropertiesService;
 import fr.paris.lutece.portal.web.constants.Parameters;
@@ -70,17 +73,18 @@ import fr.paris.lutece.util.UniqueIDGenerator;
 import fr.paris.lutece.util.date.DateUtil;
 import fr.paris.lutece.util.html.HtmlTemplate;
 
-import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.enterprise.inject.spi.CDI;
+import jakarta.servlet.http.HttpServletRequest;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
@@ -94,16 +98,11 @@ public class SolrDocumentContentService extends ContentService
     // Constants
     private static final String CONTENT_SERVICE_NAME = "SOLR Document Content Service";
     private static final String SLASH = "/";
-    private static final String ACCEPT_SITE_COMMENTS = "1";
     private static final int MODE_ADMIN = 1;
     private static final String CONSTANT_DEFAULT_PORTLET_DOCUMENT_LIST_XSL = "WEB-INF/xsl/normal/portlet_document_list.xsl";
 
     // Parameters
     private static final String PARAMETER_SOLR_DOCUMENT_ID = "solr_document_id";
-    private static final String PARAMETER_COMMENT_DOCUMENT = "comment";
-    private static final String PARAMETER_MANDATORY_FIELD = "mandatory";
-    private static final String PARAMETER_XSS_ERROR = "xsserror";
-    private static final String PARAMETER_CHECK_EMAIL = "checkemail";
     private static final String PARAMETER_SITE_PATH = "site-path";
     private static final String PARAMETER_PUBLICATION_DATE = "publication-date";
     private static final String PARAMETER_TERMS = "terms";
@@ -111,30 +110,18 @@ public class SolrDocumentContentService extends ContentService
     // Markers
     private static final String MARK_PUBLICATION = "publication";
     private static final String MARK_DOCUMENT = "document";
-    private static final String MARK_ACCEPT_COMMENT = "accept_comment";
     private static final String MARK_PORTLET = "portlet";
     private static final String MARK_CATEGORY = "categories";
     private static final String MARK_DOCUMENT_ID = "document_id";
     private static final String MARK_PORTLET_ID = "portlet_id";
     private static final String MARK_PORTLET_ID_LIST = "portlet_id_list";
-    private static final String MARK_DOCUMENT_COMMENTS = "document_comments";
-    private static final String MARK_DOCUMENT_COMMENT_FORM = "document_comment_form";
-    private static final String MARK_DOCUMENT_COMMENTS_LIST = "document_comments_list";
     private static final String MARK_DOCUMENT_CATEGORIES_LIST = "document_categories_list";
-    private static final String MARK_XSS_ERROR_MESSAGE = "xss_error_message";
-    private static final String MARK_CHECK_EMAIL_MESSAGE = "check_email_message";
-    private static final String MARK_MANDATORY_FIELD_MESSAGE = "mandatory_field_message";
-    private static final String MARK_MAILINGLIST = "mailinglist";
     private static final String MARK_URL_LOGIN = "url_login";
-    private static final String MARK_LUTECE_USER_NAME = "lutece_user_name";
-    private static final String MARK_LUTECE_USER_MAIL = "lutece_user_email";
     private static final String MARKER_TARGET = "target";
 
     // Templates
     private static final String TEMPLATE_DOCUMENT_PAGE_DEFAULT = "/skin/plugins/document/document_content_service.html";
-    private static final String TEMPLATE_DOCUMENT_COMMENTS = "/skin/plugins/document/modules/comment/document_comments.html";
     private static final String TEMPLATE_DOCUMENT_CATEGORIES = "/skin/plugins/document/document_categories.html";
-    private static final String TEMPLATE_ADD_DOCUMENT_COMMENT = "/skin/plugins/document/modules/comment/add_document_comment.html";
 
     // Properties
     private static final String PROPERTY_DEFAULT_PORTLET_DOCUMENT_LIST_XSL = "document.contentService.defaultPortletDocumentListXSL";
@@ -143,7 +130,11 @@ public class SolrDocumentContentService extends ContentService
     private static final String TARGET_TOP = "target=_top";
 
     private XmlTransformerService _xmlTransformerService;
-    private boolean _bInit;
+    private PublishingService _publishingService;
+    private SolrDocIndexer _solrDocIndexer;
+    private SolrSearchEngine _solrSearchEngine;
+    private Lutece107Cache<String, String> _cache;
+    private volatile boolean _bInit;
 
     /**
      * Returns the document page for a given document and a given portlet. The page is built from XML data or retrieved from the cache if it's enable and the
@@ -169,20 +160,20 @@ public class SolrDocumentContentService extends ContentService
         String strPortletId = request.getParameter( Parameters.PORTLET_ID );
         String strTerms = request.getParameter( PARAMETER_TERMS );
         String strKey = getCacheKey( strDocumentId, strPortletId, strTerms, nMode );
-        String strPage = (String) getFromCache( strKey );
+        String strPage = _cache.isCacheEnable( ) ? _cache.get( strKey ) : null;
 
         if ( strPage == null )
         {
             strPage = buildPage( request, strDocumentId, strPortletId, strTerms, nMode );
 
-            if ( strDocumentId != null )
+            if ( IntegerUtils.isNumeric( strDocumentId ) )
             {
-                int nDocumentId = Integer.parseInt( strDocumentId );
+                int nDocumentId = IntegerUtils.convert( strDocumentId );
                 Document document = DocumentHome.findByPrimaryKeyWithoutBinaries( nDocumentId );
 
-                if ( document != null )
+                if ( document != null && _cache.isCacheEnable( ) )
                 {
-                    putInCache( strKey, strPage );
+                    _cache.put( strKey, strPage );
                 }
             }
         }
@@ -191,18 +182,27 @@ public class SolrDocumentContentService extends ContentService
     }
 
     /**
-     * Initializes the service
+     * Initializes the service. Runs once : concurrent callers return as soon as the first one is done.
      */
-    private void init( )
+    private synchronized void init( )
     {
+        if ( _bInit )
+        {
+            return;
+        }
+
+        _publishingService = CDI.current( ).select( PublishingService.class ).get( );
+        _solrDocIndexer = CDI.current( ).select( SolrDocIndexer.class ).get( );
+        _solrSearchEngine = CDI.current( ).select( SolrSearchEngine.class ).get( );
+
+        LuteceCacheManager cacheManager = CDI.current( ).select( LuteceCacheManager.class ).get( );
+        _cache = cacheManager.createCache( getName( ), String.class, String.class );
+
         // Initialize the cache according property value.
         // If the property isn't found the default is true
         String strCache = AppPropertiesService.getProperty( PROPERTY_CACHE_ENABLED, "true" );
 
-        if ( strCache.equalsIgnoreCase( "true" ) )
-        {
-            initCache( getName( ) );
-        }
+        _cache.enableCache( strCache.equalsIgnoreCase( "true" ) );
 
         _xmlTransformerService = new XmlTransformerService( );
 
@@ -246,7 +246,7 @@ public class SolrDocumentContentService extends ContentService
         int nPortletId;
         int nDocumentId;
         boolean bPortletExist = false;
-        HashMap<String, String> mapXslParams = new HashMap<String, String>( );
+        Map<String, String> mapXslParams = new HashMap<String, String>( );
 
         try
         {
@@ -266,7 +266,7 @@ public class SolrDocumentContentService extends ContentService
         }
 
         DocumentType type = DocumentTypeHome.findByPrimaryKey( document.getCodeDocumentType( ) );
-        DocumentPublication documentPublication = PublishingService.getInstance( ).getDocumentPublication( nPortletId, nDocumentId );
+        DocumentPublication documentPublication = _publishingService.getDocumentPublication( nPortletId, nDocumentId );
 
         Map<String, Object> model = new HashMap<String, Object>( );
 
@@ -278,6 +278,12 @@ public class SolrDocumentContentService extends ContentService
             if ( bIsAlias && ( documentPublication.getPortletId( ) != nPortletId ) )
             {
                 AliasPortlet alias = (AliasPortlet) AliasPortletHome.findByPrimaryKey( nPortletId );
+
+                if ( alias == null )
+                {
+                    return PortalService.getDefaultPage( request, nMode );
+                }
+
                 nPortletId = alias.getAliasId( );
                 strPortletId = Integer.toString( nPortletId );
             }
@@ -300,7 +306,19 @@ public class SolrDocumentContentService extends ContentService
             data.setPagePath( PortalService.getXPagePathContent( document.getTitle( ), 0, request ) );
 
             Portlet portlet = PortletHome.findByPrimaryKey( nPortletId );
+
+            if ( portlet == null )
+            {
+                return PortalService.getDefaultPage( request, nMode );
+            }
+
             Page page = PageHome.getPage( portlet.getPageId( ) );
+
+            if ( page == null )
+            {
+                return PortalService.getDefaultPage( request, nMode );
+            }
+
             String strRole = page.getRole( );
 
             if ( !strRole.equals( Page.ROLE_NONE ) && SecurityService.isAuthenticationEnable( ) )
@@ -333,9 +351,8 @@ public class SolrDocumentContentService extends ContentService
                 }
             }
 
-            SolrDocIndexer solrDocIndexer = SpringContextService.getBean( SolrDocIndexer.BEAN_NAME );
-            String xmlContent = SolrSearchEngine.getInstance( )
-                    .getDocumentHighLighting( solrDocIndexer.getResourceUid( strDocumentId, DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE ), terms );
+            String xmlContent = _solrSearchEngine
+                    .getDocumentHighLighting( _solrDocIndexer.getResourceUid( strDocumentId, DocumentIndexerUtils.CONSTANT_TYPE_RESOURCE ), terms );
 
             if ( xmlContent == null )
             {
@@ -343,7 +360,7 @@ public class SolrDocumentContentService extends ContentService
             }
 
             String strDocument = _xmlTransformerService.transformBySourceWithXslCache( xmlContent, type.getContentServiceXslSource( ),
-                    XSLSOURCE_STYLE_PREFIX_ID + type.getCode( ), null, null );
+                    XSLSOURCE_STYLE_PREFIX_ID + type.getCode( ), mapXslParams, null );
 
             model.put( MARK_DOCUMENT, strDocument );
             model.put( MARK_PORTLET, getPortlet( request, strPortletId, nMode ) );
@@ -423,13 +440,19 @@ public class SolrDocumentContentService extends ContentService
      *            The Http request
      * @return The HTML code of the documents list portlet as a String
      */
-    private synchronized String getPortlet( HttpServletRequest request, String strPortletId, int nMode ) throws SiteMessageException
+    private String getPortlet( HttpServletRequest request, String strPortletId, int nMode ) throws SiteMessageException
     {
         try
         {
             int nPortletId = Integer.parseInt( strPortletId );
 
-            Portlet portlet = (DocumentListPortlet) PortletHome.findByPrimaryKey( nPortletId );
+            Portlet portlet = PortletHome.findByPrimaryKey( nPortletId );
+
+            if ( portlet == null )
+            {
+                return SolrConstants.CONSTANT_EMPTY_STRING;
+            }
+
             String strXml = portlet.getXmlDocument( request );
 
             // Selection of the XSL stylesheet
@@ -451,39 +474,47 @@ public class SolrDocumentContentService extends ContentService
             String strFileName = strFilePath.substring( strFilePath.lastIndexOf( SLASH ) + 1 );
             strFilePath = strFilePath.substring( 0, strFilePath.lastIndexOf( SLASH ) + 1 );
 
-            FileInputStream fis = AppPathService.getResourceAsStream( strFilePath, strFileName );
-            Source xslSource = new StreamSource( fis );
-
-            // Get request paramaters and store them in a map
-            Enumeration enumParam = request.getParameterNames( );
-            HashMap<String, String> htParamRequest = new HashMap<>( );
-            String paramName = "";
-
-            while ( enumParam.hasMoreElements( ) )
+            try ( InputStream isXsl = AppPathService.getResourceStream( strFilePath, strFileName ) )
             {
-                paramName = (String) enumParam.nextElement( );
-                htParamRequest.put( paramName, request.getParameter( paramName ) );
+                Source xslSource = new StreamSource( isXsl );
+
+                // Get request paramaters and store them in a map
+                Enumeration<String> enumParam = request.getParameterNames( );
+                Map<String, String> htParamRequest = new HashMap<>( );
+                String paramName = "";
+
+                while ( enumParam.hasMoreElements( ) )
+                {
+                    paramName = enumParam.nextElement( );
+                    htParamRequest.put( paramName, request.getParameter( paramName ) );
+                }
+
+                Properties outputProperties = ModeHome.getOuputXslProperties( nMode );
+
+                // Add a path param for choose url to use in admin or normal mode
+                if ( nMode != MODE_ADMIN )
+                {
+                    htParamRequest.put( PARAMETER_SITE_PATH, AppPathService.getPortalUrl( ) );
+                }
+                else
+                {
+                    htParamRequest.put( PARAMETER_SITE_PATH, AppPathService.getAdminPortalUrl( ) );
+                    htParamRequest.put( MARKER_TARGET, TARGET_TOP );
+                }
+
+                return _xmlTransformerService.transformBySourceWithXslCache( strXml, xslSource, XSLSOURCE_STYLE_PREFIX_ID + strPortletId + "-" + nMode,
+                        htParamRequest, outputProperties );
             }
-
-            Properties outputProperties = ModeHome.getOuputXslProperties( nMode );
-
-            // Add a path param for choose url to use in admin or normal mode
-            if ( nMode != MODE_ADMIN )
+            catch( ResourceNotFoundException | IOException e )
             {
-                htParamRequest.put( PARAMETER_SITE_PATH, AppPathService.getPortalUrl( ) );
-            }
-            else
-            {
-                htParamRequest.put( PARAMETER_SITE_PATH, AppPathService.getAdminPortalUrl( ) );
-                htParamRequest.put( MARKER_TARGET, TARGET_TOP );
-            }
+                AppLogService.error( "[SolrDocumentContentService] Unable to read the portlet XSL {}{}", strFilePath, strFileName, e );
 
-            return _xmlTransformerService.transformBySourceWithXslCache( strXml, xslSource, XSLSOURCE_STYLE_PREFIX_ID + strPortletId + "-" + nMode,
-                    htParamRequest, outputProperties );
+                return SolrConstants.CONSTANT_EMPTY_STRING;
+            }
         }
         catch( NumberFormatException e )
         {
-            return null;
+            return SolrConstants.CONSTANT_EMPTY_STRING;
         }
     }
 
@@ -500,7 +531,7 @@ public class SolrDocumentContentService extends ContentService
      *            The current mode.
      * @return The HTML code of the categories list portlet as a String
      */
-    private static synchronized String getRelatedDocumentsPortlet( HttpServletRequest request, Document document, int nPortletId, int nMode )
+    private String getRelatedDocumentsPortlet( HttpServletRequest request, Document document, int nPortletId, int nMode )
     {
         if ( ( nMode != MODE_ADMIN ) && ( document.getCategories( ) != null ) && ( document.getCategories( ).size( ) > 0 ) )
         {
@@ -514,10 +545,10 @@ public class SolrDocumentContentService extends ContentService
             for ( Document relatedDocument : listRelatedDocument )
             {
                 // Get list of portlets for each document
-                for ( Portlet portlet : PublishingService.getInstance( ).getPortletsByDocumentId( Integer.toString( relatedDocument.getId( ) ) ) )
+                for ( Portlet portlet : _publishingService.getPortletsByDocumentId( Integer.toString( relatedDocument.getId( ) ) ) )
                 {
                     // Check if document and portlet are published and document is not the input document
-                    if ( ( PublishingService.getInstance( ).isPublished( relatedDocument.getId( ), portlet.getId( ) ) )
+                    if ( ( _publishingService.isPublished( relatedDocument.getId( ), portlet.getId( ) ) )
                             && ( portlet.getStatus( ) == Portlet.STATUS_PUBLISHED ) && ( relatedDocument.isValid( ) )
                             && ( relatedDocument.getId( ) != document.getId( ) ) )
                     {
@@ -540,53 +571,5 @@ public class SolrDocumentContentService extends ContentService
         {
             return SolrConstants.CONSTANT_EMPTY_STRING;
         }
-    }
-
-    /**
-     * Return the comment creation form
-     * 
-     * @param strDocumentId
-     *            the identifier of the document
-     * @param strPortletId
-     *            the identifier of the portlet
-     * @return the HTML code of the form
-     */
-    private static String getAddCommentForm( HttpServletRequest request, String strDocumentId, String strPortletId, String strMailingListId, String strXssError,
-            String strCheckEmail, String strMandatoryField )
-    {
-        Map<String, Object> model = new HashMap<String, Object>( );
-
-        try
-        {
-            if ( SecurityService.isAuthenticationEnable( ) )
-            {
-                // Authentication is enabled
-                LuteceUser luteceUser = SecurityService.getInstance( ).getRemoteUser( request );
-
-                if ( luteceUser != null )
-                {
-                    // User is authenticated => we display its id and its email
-                    model.put( MARK_LUTECE_USER_NAME, luteceUser.getName( ) );
-                    model.put( MARK_LUTECE_USER_MAIL, luteceUser.getUserInfo( LuteceUser.BUSINESS_INFO_ONLINE_EMAIL ) );
-                }
-            }
-        }
-        catch( UserNotSignedException e )
-        {
-            /*
-             * Authentication is not enabled or User is not authenticated => we do not display id and email
-             */
-        }
-
-        model.put( MARK_DOCUMENT_ID, strDocumentId );
-        model.put( MARK_PORTLET_ID, strPortletId );
-        model.put( MARK_MAILINGLIST, strMailingListId );
-        model.put( MARK_XSS_ERROR_MESSAGE, strXssError );
-        model.put( MARK_CHECK_EMAIL_MESSAGE, strCheckEmail );
-        model.put( MARK_MANDATORY_FIELD_MESSAGE, strMandatoryField );
-
-        HtmlTemplate template = AppTemplateService.getTemplate( TEMPLATE_ADD_DOCUMENT_COMMENT, request.getLocale( ), model );
-
-        return template.getHtml( );
     }
 }
